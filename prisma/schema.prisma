@@ -1,0 +1,66 @@
+// Prisma Schema para Sistema de Gestão de Agenda - Clínicas Médicas
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id               String        @id @default(uuid())
+  nome             String
+  clinica          String
+  email            String        @unique
+  senhaHash        String
+  googleCalendarId String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  agendamentos     Agendamento[]
+  bloqueios        Bloqueio[]
+
+  @@map("usuarios")
+}
+
+model Agendamento {
+  id               String   @id @default(uuid())
+  usuarioId        String
+  usuario          Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  pacienteNome     String
+  pacienteTelefone String
+  pacienteEmail    String?
+  dataHora         DateTime
+  tipo             String   // 'consulta', 'retorno', 'procedimento', 'avaliacao', 'emergencia'
+  observacoes      String?
+  origem           String   @default("manual") // 'manual' ou 'agente_ia'
+  googleEventId    String?  @unique
+  status           String   @default("confirmado") // 'confirmado', 'cancelado', 'realizado'
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([usuarioId])
+  @@index([dataHora])
+  @@index([status])
+  @@map("agendamentos")
+}
+
+model Bloqueio {
+  id         String   @id @default(uuid())
+  usuarioId  String
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo       String   // 'horario' ou 'dia_inteiro'
+  data       DateTime
+  horaInicio String?  // formato "HH:MM"
+  horaFim    String?  // formato "HH:MM"
+  motivo     String?
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([usuarioId])
+  @@index([data])
+  @@index([ativo])
+  @@map("bloqueios")
+}
