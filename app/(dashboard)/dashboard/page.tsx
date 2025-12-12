@@ -1,0 +1,525 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, isToday } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ModalAgendar } from "@/components/modals/ModalAgendar";
+import { ModalBloquear } from "@/components/modals/ModalBloquear";
+import { GraficoAgendamentos } from "@/components/charts/GraficoAgendamentos";
+
+interface Agendamento {
+  id: string;
+  pacienteNome: string;
+  pacienteTelefone: string;
+  pacienteEmail?: string;
+  dataHora: string;
+  tipo: string;
+  observacoes?: string;
+  origem: string;
+  status: string;
+}
+
+interface Bloqueio {
+  id: string;
+  tipo: string;
+  data: string;
+  horaInicio?: string;
+  horaFim?: string;
+  motivo?: string;
+  ativo: boolean;
+}
+
+interface Stats {
+  agendamentosHoje: number;
+  totalSemana: number;
+  bloqueiosAtivos: number;
+}
+
+interface UserInfo {
+  clinica: string;
+  nome: string;
+}
+
+const HORARIOS = [
+  "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
+  "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
+  "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
+  "17:00", "17:30", "18:00"
+];
+
+const TIPOS_CONSULTA: Record<string, string> = {
+  consulta: "Consulta",
+  retorno: "Retorno",
+  procedimento: "Procedimento",
+  avaliacao: "Avaliação",
+  emergencia: "Emergência",
+};
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [bloqueios, setBloqueios] = useState<Bloqueio[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [modalAgendarOpen, setModalAgendarOpen] = useState(false);
+  const [modalBloquearOpen, setModalBloquearOpen] = useState(false);
+  const [showGrafico, setShowGrafico] = useState(false);
+  const [selectedHorario, setSelectedHorario] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const [agendRes, bloqRes, statsRes, userRes] = await Promise.all([
+        fetch(`/api/agendamentos?data=${dateStr}`),
+        fetch("/api/bloqueios"),
+        fetch("/api/stats"),
+        fetch("/api/auth/me"),
+      ]);
+
+      if (agendRes.ok) {
+        const data = await agendRes.json();
+        setAgendamentos(data);
+      }
+      if (bloqRes.ok) {
+        const data = await bloqRes.json();
+        setBloqueios(data);
+      }
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats(data);
+      }
+      if (userRes.ok) {
+        const data = await userRes.json();
+        setUserInfo(data);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dados:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
+
+  async function handleRemoverBloqueio(id: string) {
+    try {
+      const response = await fetch(`/api/bloqueios/${id}`, { method: "DELETE" });
+      if (response.ok) {
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Erro ao remover bloqueio:", error);
+    }
+  }
+
+  function getHorarioStatus(horario: string) {
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+
+    // Verifica se há bloqueio de dia inteiro
+    const bloqueioInteiro = bloqueios.find(
+      (b) => b.ativo && b.tipo === "dia_inteiro" && format(new Date(b.data), "yyyy-MM-dd") === dateStr
+    );
+    if (bloqueioInteiro) {
+      return { status: "bloqueado", data: bloqueioInteiro };
+    }
+
+    // Verifica se há bloqueio de horário
+    const bloqueioHorario = bloqueios.find((b) => {
+      if (!b.ativo || b.tipo !== "horario") return false;
+      const bloqDate = format(new Date(b.data), "yyyy-MM-dd");
+      if (bloqDate !== dateStr) return false;
+      if (b.horaInicio && b.horaFim) {
+        return horario >= b.horaInicio && horario < b.horaFim;
+      }
+      return false;
+    });
+    if (bloqueioHorario) {
+      return { status: "bloqueado", data: bloqueioHorario };
+    }
+
+    // Verifica se há agendamento
+    const agendamento = agendamentos.find((a) => {
+      const agendHora = format(new Date(a.dataHora), "HH:mm");
+      return agendHora === horario && a.status === "confirmado";
+    });
+    if (agendamento) {
+      return { status: "confirmado", data: agendamento };
+    }
+
+    return { status: "livre", data: null };
+  }
+
+  function isDayBlocked(date: Date) {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return bloqueios.some(
+      (b) => b.ativo && format(new Date(b.data), "yyyy-MM-dd") === dateStr
+    );
+  }
+
+  function renderCalendar() {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const startDate = startOfWeek(monthStart, { weekStartsOn: 0 });
+    const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 });
+
+    const rows = [];
+    let days = [];
+    let day = startDate;
+
+    while (day <= endDate) {
+      for (let i = 0; i < 7; i++) {
+        const cloneDay = day;
+        const isBlocked = isDayBlocked(cloneDay);
+        const isSelected = isSameDay(cloneDay, selectedDate);
+        const isTodayDate = isToday(cloneDay);
+        const isCurrentMonth = isSameMonth(cloneDay, currentMonth);
+
+        days.push(
+          <button
+            key={day.toString()}
+            onClick={() => setSelectedDate(cloneDay)}
+            className={`
+              p-2 text-sm rounded-md transition-colors relative
+              ${!isCurrentMonth ? "text-gray-300" : "text-gray-700"}
+              ${isSelected ? "bg-primary text-white" : "hover:bg-gray-100"}
+              ${isTodayDate && !isSelected ? "ring-2 ring-primary" : ""}
+              ${isBlocked && isCurrentMonth ? "bg-red-100" : ""}
+            `}
+          >
+            {format(day, "d")}
+            {isBlocked && isCurrentMonth && (
+              <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-red-500 rounded-full" />
+            )}
+          </button>
+        );
+        day = addDays(day, 1);
+      }
+      rows.push(
+        <div key={day.toString()} className="grid grid-cols-7 gap-1">
+          {days}
+        </div>
+      );
+      days = [];
+    }
+
+    return rows;
+  }
+
+  function openAgendarModal(horario: string) {
+    setSelectedHorario(horario);
+    setModalAgendarOpen(true);
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <Skeleton className="h-16 w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Skeleton className="h-96" />
+            <Skeleton className="h-96 lg:col-span-2" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {userInfo?.clinica || "Clínica"}
+              </h1>
+              <p className="text-sm text-gray-500">
+                Olá, {userInfo?.nome || "Usuário"}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowGrafico(!showGrafico)}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                {showGrafico ? "Ocultar Gráfico" : "Ver Gráfico"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm font-medium">Agendamentos Hoje</p>
+                  <p className="text-3xl font-bold mt-1">{stats?.agendamentosHoje || 0}</p>
+                </div>
+                <CalendarDays className="h-10 w-10 text-blue-200" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-100 text-sm font-medium">Total da Semana</p>
+                  <p className="text-3xl font-bold mt-1">{stats?.totalSemana || 0}</p>
+                </div>
+                <Clock className="h-10 w-10 text-emerald-200" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-red-100 text-sm font-medium">Bloqueios Ativos</p>
+                  <p className="text-3xl font-bold mt-1">{stats?.bloqueiosAtivos || 0}</p>
+                </div>
+                <Lock className="h-10 w-10 text-red-200" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Gráfico (toggle) */}
+        {showGrafico && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Gráfico de Agendamentos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GraficoAgendamentos />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Calendário */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">
+                  {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
+                </CardTitle>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCurrentMonth(addDays(currentMonth, -30))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCurrentMonth(addDays(currentMonth, 30))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((day) => (
+                  <div key={day} className="text-center text-xs font-medium text-gray-500 p-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1">{renderCalendar()}</div>
+              <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <span className="w-3 h-3 bg-primary rounded" />
+                  <span>Selecionado</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-3 h-3 bg-red-100 rounded border border-red-300" />
+                  <span>Bloqueado</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Horários do Dia */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">
+                  Horários - {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+                </CardTitle>
+                <Button onClick={() => setModalBloquearOpen(true)} variant="destructive" size="sm">
+                  <Lock className="h-4 w-4 mr-2" />
+                  Bloquear
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                {HORARIOS.map((horario) => {
+                  const { status, data } = getHorarioStatus(horario);
+
+                  return (
+                    <div
+                      key={horario}
+                      className={`
+                        flex items-center justify-between p-3 rounded-lg border transition-colors
+                        ${status === "confirmado" ? "bg-emerald-50 border-emerald-200" : ""}
+                        ${status === "bloqueado" ? "bg-red-50 border-red-200" : ""}
+                        ${status === "livre" ? "bg-gray-50 border-gray-200 hover:bg-gray-100" : ""}
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-sm font-medium w-12">{horario}</span>
+                        {status === "confirmado" && data && (
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="success" className="text-xs">
+                                {TIPOS_CONSULTA[(data as Agendamento).tipo] || (data as Agendamento).tipo}
+                              </Badge>
+                              <span className="font-medium text-sm">
+                                {(data as Agendamento).pacienteNome}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {(data as Agendamento).pacienteTelefone}
+                            </span>
+                          </div>
+                        )}
+                        {status === "bloqueado" && data && (
+                          <div className="flex items-center gap-2">
+                            <Lock className="h-4 w-4 text-red-500" />
+                            <span className="text-sm text-red-600">
+                              {(data as Bloqueio).motivo || "Horário bloqueado"}
+                            </span>
+                          </div>
+                        )}
+                        {status === "livre" && (
+                          <span className="text-sm text-gray-400">Disponível</span>
+                        )}
+                      </div>
+                      {status === "livre" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openAgendarModal(horario)}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Agendar
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Lista de Bloqueios Ativos */}
+        {bloqueios.filter((b) => b.ativo).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Bloqueios Ativos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {bloqueios
+                  .filter((b) => b.ativo)
+                  .map((bloqueio) => (
+                    <div
+                      key={bloqueio.id}
+                      className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Lock className="h-5 w-5 text-red-500" />
+                        <div>
+                          <p className="font-medium text-sm">
+                            {format(new Date(bloqueio.data), "dd/MM/yyyy", { locale: ptBR })}
+                            {bloqueio.tipo === "horario" && bloqueio.horaInicio && bloqueio.horaFim && (
+                              <span className="ml-2 text-gray-600">
+                                {bloqueio.horaInicio} - {bloqueio.horaFim}
+                              </span>
+                            )}
+                            {bloqueio.tipo === "dia_inteiro" && (
+                              <Badge variant="destructive" className="ml-2">
+                                Dia Inteiro
+                              </Badge>
+                            )}
+                          </p>
+                          {bloqueio.motivo && (
+                            <p className="text-xs text-gray-500">{bloqueio.motivo}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoverBloqueio(bloqueio.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-100"
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+
+      {/* Modals */}
+      <ModalAgendar
+        open={modalAgendarOpen}
+        onOpenChange={setModalAgendarOpen}
+        selectedDate={selectedDate}
+        selectedHorario={selectedHorario}
+        onSuccess={fetchData}
+      />
+      <ModalBloquear
+        open={modalBloquearOpen}
+        onOpenChange={setModalBloquearOpen}
+        selectedDate={selectedDate}
+        onSuccess={fetchData}
+      />
+    </div>
+  );
+}
