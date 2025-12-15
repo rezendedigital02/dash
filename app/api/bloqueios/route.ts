@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { createCalendarEvent } from "@/lib/google-calendar";
 
 // GET /api/bloqueios - Lista bloqueios ativos
 export async function GET() {
@@ -63,6 +64,58 @@ export async function POST(request: NextRequest) {
 
     const dataBloqueio = new Date(data);
 
+    // Busca dados do usuário para Google Calendar
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: user.userId },
+      select: {
+        googleCalendarId: true,
+        googleRefreshToken: true,
+      },
+    });
+
+    let googleEventId: string | null = null;
+
+    // Se Google Calendar estiver conectado, cria evento de bloqueio
+    if (usuario?.googleRefreshToken && usuario?.googleCalendarId) {
+      try {
+        let startDateTime: Date;
+        let endDateTime: Date;
+
+        if (tipo === "dia_inteiro") {
+          // Bloqueio de dia inteiro: 08:00 às 18:00
+          startDateTime = new Date(dataBloqueio);
+          startDateTime.setHours(8, 0, 0, 0);
+          endDateTime = new Date(dataBloqueio);
+          endDateTime.setHours(18, 0, 0, 0);
+        } else {
+          // Bloqueio de horário específico
+          const [horaIni, minIni] = horaInicio.split(":").map(Number);
+          const [horaFi, minFi] = horaFim.split(":").map(Number);
+          startDateTime = new Date(dataBloqueio);
+          startDateTime.setHours(horaIni, minIni, 0, 0);
+          endDateTime = new Date(dataBloqueio);
+          endDateTime.setHours(horaFi, minFi, 0, 0);
+        }
+
+        const event = await createCalendarEvent(
+          usuario.googleRefreshToken,
+          usuario.googleCalendarId,
+          {
+            summary: `BLOQUEADO${motivo ? ` - ${motivo}` : ""}`,
+            description: tipo === "dia_inteiro"
+              ? "Bloqueio de dia inteiro"
+              : `Bloqueio de ${horaInicio} às ${horaFim}`,
+            startDateTime,
+            endDateTime,
+          }
+        );
+
+        googleEventId = event.id || null;
+      } catch (error) {
+        console.error("Erro ao criar evento de bloqueio no Calendar:", error);
+      }
+    }
+
     // Cria o bloqueio
     const bloqueio = await prisma.bloqueio.create({
       data: {
@@ -73,6 +126,7 @@ export async function POST(request: NextRequest) {
         horaFim: tipo === "horario" ? horaFim : null,
         motivo,
         ativo: true,
+        googleEventId,
       },
     });
 

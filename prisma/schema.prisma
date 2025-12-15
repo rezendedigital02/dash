@@ -48,17 +48,18 @@ model Agendamento {
 }
 
 model Bloqueio {
-  id         String   @id @default(uuid())
-  usuarioId  String
-  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  tipo       String   // 'horario' ou 'dia_inteiro'
-  data       DateTime
-  horaInicio String?  // formato "HH:MM"
-  horaFim    String?  // formato "HH:MM"
-  motivo     String?
-  ativo      Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(uuid())
+  usuarioId     String
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo          String   // 'horario' ou 'dia_inteiro'
+  data          DateTime
+  horaInicio    String?  // formato "HH:MM"
+  horaFim       String?  // formato "HH:MM"
+  motivo        String?
+  ativo         Boolean  @default(true)
+  googleEventId String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([usuarioId])
   @@index([data])
