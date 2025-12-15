@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { deleteCalendarEvent } from "@/lib/google-calendar";
 
 // DELETE /api/bloqueios/[id] - Remove bloqueio
 export async function DELETE(
@@ -21,6 +22,14 @@ export async function DELETE(
         id,
         usuarioId: user.userId,
       },
+      include: {
+        usuario: {
+          select: {
+            googleCalendarId: true,
+            googleRefreshToken: true,
+          },
+        },
+      },
     });
 
     if (!bloqueio) {
@@ -30,7 +39,25 @@ export async function DELETE(
       );
     }
 
-    // Desativa o bloqueio ao invés de deletar (soft delete)
+    // Se tiver evento no Google Calendar, deleta
+    if (
+      bloqueio.googleEventId &&
+      bloqueio.usuario.googleRefreshToken &&
+      bloqueio.usuario.googleCalendarId
+    ) {
+      try {
+        await deleteCalendarEvent(
+          bloqueio.usuario.googleRefreshToken,
+          bloqueio.usuario.googleCalendarId,
+          bloqueio.googleEventId
+        );
+      } catch (error) {
+        console.error("Erro ao deletar evento do Calendar:", error);
+        // Continua mesmo se falhar no Calendar
+      }
+    }
+
+    // Desativa o bloqueio (soft delete)
     await prisma.bloqueio.update({
       where: { id },
       data: { ativo: false },

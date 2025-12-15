@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { startOfDay, endOfDay } from "date-fns";
+import { createCalendarEvent, formatAgendamentoToEvent } from "@/lib/google-calendar";
 
 // GET /api/agendamentos - Lista agendamentos (filtrado por data)
 export async function GET(request: NextRequest) {
@@ -73,7 +74,6 @@ export async function POST(request: NextRequest) {
     });
 
     if (bloqueioExistente) {
-      // Verifica se é bloqueio de dia inteiro ou se o horário está dentro do bloqueio
       if (bloqueioExistente.tipo === "dia_inteiro") {
         return NextResponse.json(
           { error: "Este dia está bloqueado" },
@@ -108,7 +108,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Busca dados do usuário para Google Calendar
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: user.userId },
+      select: {
+        googleCalendarId: true,
+        googleRefreshToken: true,
+      },
+    });
+
     // Cria o agendamento
+    let googleEventId: string | null = null;
+
+    // Se Google Calendar estiver conectado, cria o evento
+    if (usuario?.googleRefreshToken && usuario?.googleCalendarId) {
+      try {
+        const eventData = formatAgendamentoToEvent({
+          pacienteNome,
+          pacienteTelefone,
+          pacienteEmail,
+          tipo,
+          observacoes,
+          dataHora: dataAgendamento,
+        });
+
+        const event = await createCalendarEvent(
+          usuario.googleRefreshToken,
+          usuario.googleCalendarId,
+          eventData
+        );
+
+        googleEventId = event.id || null;
+      } catch (error) {
+        console.error("Erro ao criar evento no Google Calendar:", error);
+        // Continua mesmo sem criar o evento no Calendar
+      }
+    }
+
     const agendamento = await prisma.agendamento.create({
       data: {
         usuarioId: user.userId,
@@ -120,6 +156,7 @@ export async function POST(request: NextRequest) {
         observacoes,
         origem: "manual",
         status: "confirmado",
+        googleEventId,
       },
     });
 

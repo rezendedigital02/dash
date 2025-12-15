@@ -10,16 +10,17 @@ datasource db {
 }
 
 model Usuario {
-  id               String        @id @default(uuid())
-  nome             String
-  clinica          String
-  email            String        @unique
-  senhaHash        String
-  googleCalendarId String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  agendamentos     Agendamento[]
-  bloqueios        Bloqueio[]
+  id                 String        @id @default(uuid())
+  nome               String
+  clinica            String
+  email              String        @unique
+  senhaHash          String
+  googleCalendarId   String?
+  googleRefreshToken String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  agendamentos       Agendamento[]
+  bloqueios          Bloqueio[]
 
   @@map("usuarios")
 }
@@ -47,17 +48,18 @@ model Agendamento {
 }
 
 model Bloqueio {
-  id         String   @id @default(uuid())
-  usuarioId  String
-  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  tipo       String   // 'horario' ou 'dia_inteiro'
-  data       DateTime
-  horaInicio String?  // formato "HH:MM"
-  horaFim    String?  // formato "HH:MM"
-  motivo     String?
-  ativo      Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(uuid())
+  usuarioId     String
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo          String   // 'horario' ou 'dia_inteiro'
+  data          DateTime
+  horaInicio    String?  // formato "HH:MM"
+  horaFim       String?  // formato "HH:MM"
+  motivo        String?
+  ativo         Boolean  @default(true)
+  googleEventId String?  @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([usuarioId])
   @@index([data])

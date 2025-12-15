@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3 } from "lucide-react";
+import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3, Menu, X, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +74,8 @@ export default function DashboardPage() {
   const [modalBloquearOpen, setModalBloquearOpen] = useState(false);
   const [showGrafico, setShowGrafico] = useState(false);
   const [selectedHorario, setSelectedHorario] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -132,7 +134,6 @@ export default function DashboardPage() {
   function getHorarioStatus(horario: string) {
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
-    // Verifica se há bloqueio de dia inteiro
     const bloqueioInteiro = bloqueios.find(
       (b) => b.ativo && b.tipo === "dia_inteiro" && format(new Date(b.data), "yyyy-MM-dd") === dateStr
     );
@@ -140,7 +141,6 @@ export default function DashboardPage() {
       return { status: "bloqueado", data: bloqueioInteiro };
     }
 
-    // Verifica se há bloqueio de horário
     const bloqueioHorario = bloqueios.find((b) => {
       if (!b.ativo || b.tipo !== "horario") return false;
       const bloqDate = format(new Date(b.data), "yyyy-MM-dd");
@@ -154,7 +154,6 @@ export default function DashboardPage() {
       return { status: "bloqueado", data: bloqueioHorario };
     }
 
-    // Verifica se há agendamento
     const agendamento = agendamentos.find((a) => {
       const agendHora = format(new Date(a.dataHora), "HH:mm");
       return agendHora === horario && a.status === "confirmado";
@@ -194,11 +193,14 @@ export default function DashboardPage() {
         days.push(
           <button
             key={day.toString()}
-            onClick={() => setSelectedDate(cloneDay)}
+            onClick={() => {
+              setSelectedDate(cloneDay);
+              setShowCalendar(false);
+            }}
             className={`
-              p-2 text-sm rounded-md transition-colors relative
+              p-1.5 sm:p-2 text-xs sm:text-sm rounded-md transition-colors relative min-w-[36px] min-h-[36px]
               ${!isCurrentMonth ? "text-gray-300" : "text-gray-700"}
-              ${isSelected ? "bg-primary text-white" : "hover:bg-gray-100"}
+              ${isSelected ? "bg-primary text-white" : "hover:bg-gray-100 active:bg-gray-200"}
               ${isTodayDate && !isSelected ? "ring-2 ring-primary" : ""}
               ${isBlocked && isCurrentMonth ? "bg-red-100" : ""}
             `}
@@ -212,7 +214,7 @@ export default function DashboardPage() {
         day = addDays(day, 1);
       }
       rows.push(
-        <div key={day.toString()} className="grid grid-cols-7 gap-1">
+        <div key={day.toString()} className="grid grid-cols-7 gap-0.5 sm:gap-1">
           {days}
         </div>
       );
@@ -229,18 +231,15 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <Skeleton className="h-16 w-full" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
+      <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
+        <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
+          <Skeleton className="h-14 sm:h-16 w-full" />
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <Skeleton className="h-20 sm:h-32" />
+            <Skeleton className="h-20 sm:h-32" />
+            <Skeleton className="h-20 sm:h-32" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Skeleton className="h-96" />
-            <Skeleton className="h-96 lg:col-span-2" />
-          </div>
+          <Skeleton className="h-64 sm:h-96" />
         </div>
       </div>
     );
@@ -248,71 +247,108 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      {/* Header Mobile */}
+      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 truncate">
                 {userInfo?.clinica || "Clínica"}
               </h1>
-              <p className="text-sm text-gray-500">
-                Olá, {userInfo?.nome || "Usuário"}
+              <p className="text-xs sm:text-sm text-gray-500 truncate">
+                Olá, {userInfo?.nome?.split(" ")[0] || "Usuário"}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Desktop buttons */}
+            <div className="hidden sm:flex items-center gap-2 sm:gap-3">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowGrafico(!showGrafico)}
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
-                {showGrafico ? "Ocultar Gráfico" : "Ver Gráfico"}
+                {showGrafico ? "Ocultar" : "Gráfico"}
               </Button>
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Sair
               </Button>
             </div>
+
+            {/* Mobile menu button */}
+            <button
+              className="sm:hidden p-2 rounded-md hover:bg-gray-100"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
           </div>
+
+          {/* Mobile menu dropdown */}
+          {mobileMenuOpen && (
+            <div className="sm:hidden mt-3 pt-3 border-t space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowGrafico(!showGrafico);
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                {showGrafico ? "Ocultar Gráfico" : "Ver Gráfico"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start text-red-600 hover:text-red-700"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Stats Cards - Compactos no mobile */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm font-medium">Agendamentos Hoje</p>
-                  <p className="text-3xl font-bold mt-1">{stats?.agendamentosHoje || 0}</p>
+                  <p className="text-blue-100 text-[10px] sm:text-sm font-medium">Hoje</p>
+                  <p className="text-xl sm:text-3xl font-bold">{stats?.agendamentosHoje || 0}</p>
                 </div>
-                <CalendarDays className="h-10 w-10 text-blue-200" />
+                <CalendarDays className="hidden sm:block h-10 w-10 text-blue-200" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-emerald-100 text-sm font-medium">Total da Semana</p>
-                  <p className="text-3xl font-bold mt-1">{stats?.totalSemana || 0}</p>
+                  <p className="text-emerald-100 text-[10px] sm:text-sm font-medium">Semana</p>
+                  <p className="text-xl sm:text-3xl font-bold">{stats?.totalSemana || 0}</p>
                 </div>
-                <Clock className="h-10 w-10 text-emerald-200" />
+                <Clock className="hidden sm:block h-10 w-10 text-emerald-200" />
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-red-100 text-sm font-medium">Bloqueios Ativos</p>
-                  <p className="text-3xl font-bold mt-1">{stats?.bloqueiosAtivos || 0}</p>
+                  <p className="text-red-100 text-[10px] sm:text-sm font-medium">Bloqueios</p>
+                  <p className="text-xl sm:text-3xl font-bold">{stats?.bloqueiosAtivos || 0}</p>
                 </div>
-                <Lock className="h-10 w-10 text-red-200" />
+                <Lock className="hidden sm:block h-10 w-10 text-red-200" />
               </div>
             </CardContent>
           </Card>
@@ -321,8 +357,8 @@ export default function DashboardPage() {
         {/* Gráfico (toggle) */}
         {showGrafico && (
           <Card>
-            <CardHeader>
-              <CardTitle>Gráfico de Agendamentos</CardTitle>
+            <CardHeader className="pb-2 sm:pb-6">
+              <CardTitle className="text-base sm:text-lg">Gráfico de Agendamentos</CardTitle>
             </CardHeader>
             <CardContent>
               <GraficoAgendamentos />
@@ -330,10 +366,64 @@ export default function DashboardPage() {
           </Card>
         )}
 
+        {/* Data selecionada e botão calendário (mobile) */}
+        <div className="flex items-center justify-between sm:hidden">
+          <button
+            onClick={() => setShowCalendar(!showCalendar)}
+            className="flex items-center gap-2 text-lg font-semibold text-gray-900"
+          >
+            <CalendarDays className="h-5 w-5 text-primary" />
+            {format(selectedDate, "dd MMM yyyy", { locale: ptBR })}
+            <ChevronRight className={`h-4 w-4 transition-transform ${showCalendar ? "rotate-90" : ""}`} />
+          </button>
+          <Button onClick={() => setModalBloquearOpen(true)} variant="destructive" size="sm">
+            <Lock className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Calendário Mobile (collapsible) */}
+        {showCalendar && (
+          <Card className="sm:hidden">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-medium text-sm">
+                  {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentMonth(addDays(currentMonth, -30))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentMonth(addDays(currentMonth, 30))}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-0.5 mb-1">
+                {["D", "S", "T", "Q", "Q", "S", "S"].map((day, i) => (
+                  <div key={i} className="text-center text-xs font-medium text-gray-500 p-1">
+                    {day}
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-0.5">{renderCalendar()}</div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendário */}
-          <Card>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* Calendário Desktop */}
+          <Card className="hidden sm:block">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">
@@ -381,19 +471,25 @@ export default function DashboardPage() {
 
           {/* Horários do Dia */}
           <Card className="lg:col-span-2">
-            <CardHeader>
+            <CardHeader className="pb-2 sm:pb-6">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">
-                  Horários - {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+                <CardTitle className="text-base sm:text-lg">
+                  <span className="hidden sm:inline">Horários - </span>
+                  {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
                 </CardTitle>
-                <Button onClick={() => setModalBloquearOpen(true)} variant="destructive" size="sm">
+                <Button
+                  onClick={() => setModalBloquearOpen(true)}
+                  variant="destructive"
+                  size="sm"
+                  className="hidden sm:flex"
+                >
                   <Lock className="h-4 w-4 mr-2" />
                   Bloquear
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+            <CardContent className="px-3 sm:px-6">
+              <div className="space-y-2 max-h-[60vh] sm:max-h-[500px] overflow-y-auto">
                 {HORARIOS.map((horario) => {
                   const { status, data } = getHorarioStatus(horario);
 
@@ -401,49 +497,56 @@ export default function DashboardPage() {
                     <div
                       key={horario}
                       className={`
-                        flex items-center justify-between p-3 rounded-lg border transition-colors
+                        flex items-center justify-between p-2.5 sm:p-3 rounded-lg border transition-colors
                         ${status === "confirmado" ? "bg-emerald-50 border-emerald-200" : ""}
                         ${status === "bloqueado" ? "bg-red-50 border-red-200" : ""}
-                        ${status === "livre" ? "bg-gray-50 border-gray-200 hover:bg-gray-100" : ""}
+                        ${status === "livre" ? "bg-gray-50 border-gray-200 hover:bg-gray-100 active:bg-gray-200" : ""}
                       `}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm font-medium w-12">{horario}</span>
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <span className="font-mono text-xs sm:text-sm font-medium w-10 sm:w-12 flex-shrink-0">
+                          {horario}
+                        </span>
                         {status === "confirmado" && data && (
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="success" className="text-xs">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                              <Badge variant="success" className="text-[10px] sm:text-xs">
                                 {TIPOS_CONSULTA[(data as Agendamento).tipo] || (data as Agendamento).tipo}
                               </Badge>
-                              <span className="font-medium text-sm">
+                              <span className="font-medium text-xs sm:text-sm truncate">
                                 {(data as Agendamento).pacienteNome}
                               </span>
                             </div>
-                            <span className="text-xs text-gray-500">
+                            <a
+                              href={`tel:${(data as Agendamento).pacienteTelefone}`}
+                              className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 hover:text-primary"
+                            >
+                              <Phone className="h-3 w-3" />
                               {(data as Agendamento).pacienteTelefone}
-                            </span>
+                            </a>
                           </div>
                         )}
                         {status === "bloqueado" && data && (
-                          <div className="flex items-center gap-2">
-                            <Lock className="h-4 w-4 text-red-500" />
-                            <span className="text-sm text-red-600">
-                              {(data as Bloqueio).motivo || "Horário bloqueado"}
+                          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                            <Lock className="h-3 w-3 sm:h-4 sm:w-4 text-red-500 flex-shrink-0" />
+                            <span className="text-xs sm:text-sm text-red-600 truncate">
+                              {(data as Bloqueio).motivo || "Bloqueado"}
                             </span>
                           </div>
                         )}
                         {status === "livre" && (
-                          <span className="text-sm text-gray-400">Disponível</span>
+                          <span className="text-xs sm:text-sm text-gray-400">Disponível</span>
                         )}
                       </div>
                       {status === "livre" && (
                         <Button
                           size="sm"
                           variant="outline"
+                          className="h-8 px-2 sm:px-3 flex-shrink-0"
                           onClick={() => openAgendarModal(horario)}
                         >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Agendar
+                          <Plus className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Agendar</span>
                         </Button>
                       )}
                     </div>
@@ -457,36 +560,36 @@ export default function DashboardPage() {
         {/* Lista de Bloqueios Ativos */}
         {bloqueios.filter((b) => b.ativo).length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Bloqueios Ativos</CardTitle>
+            <CardHeader className="pb-2 sm:pb-6">
+              <CardTitle className="text-base sm:text-lg">Bloqueios Ativos</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-6">
               <div className="space-y-2">
                 {bloqueios
                   .filter((b) => b.ativo)
                   .map((bloqueio) => (
                     <div
                       key={bloqueio.id}
-                      className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200"
+                      className="flex items-center justify-between p-2.5 sm:p-3 bg-red-50 rounded-lg border border-red-200"
                     >
-                      <div className="flex items-center gap-3">
-                        <Lock className="h-5 w-5 text-red-500" />
-                        <div>
-                          <p className="font-medium text-sm">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <Lock className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-xs sm:text-sm">
                             {format(new Date(bloqueio.data), "dd/MM/yyyy", { locale: ptBR })}
                             {bloqueio.tipo === "horario" && bloqueio.horaInicio && bloqueio.horaFim && (
-                              <span className="ml-2 text-gray-600">
-                                {bloqueio.horaInicio} - {bloqueio.horaFim}
+                              <span className="ml-1 sm:ml-2 text-gray-600">
+                                {bloqueio.horaInicio}-{bloqueio.horaFim}
                               </span>
                             )}
                             {bloqueio.tipo === "dia_inteiro" && (
-                              <Badge variant="destructive" className="ml-2">
+                              <Badge variant="destructive" className="ml-1 sm:ml-2 text-[10px] sm:text-xs">
                                 Dia Inteiro
                               </Badge>
                             )}
                           </p>
                           {bloqueio.motivo && (
-                            <p className="text-xs text-gray-500">{bloqueio.motivo}</p>
+                            <p className="text-[10px] sm:text-xs text-gray-500 truncate">{bloqueio.motivo}</p>
                           )}
                         </div>
                       </div>
@@ -494,9 +597,10 @@ export default function DashboardPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoverBloqueio(bloqueio.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-100"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-100 h-8 px-2 sm:px-3 flex-shrink-0"
                       >
-                        Remover
+                        <span className="hidden sm:inline">Remover</span>
+                        <X className="h-4 w-4 sm:hidden" />
                       </Button>
                     </div>
                   ))}
