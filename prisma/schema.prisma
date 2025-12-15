@@ -10,16 +10,17 @@ datasource db {
 }
 
 model Usuario {
-  id               String        @id @default(uuid())
-  nome             String
-  clinica          String
-  email            String        @unique
-  senhaHash        String
-  googleCalendarId String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  agendamentos     Agendamento[]
-  bloqueios        Bloqueio[]
+  id                 String        @id @default(uuid())
+  nome               String
+  clinica            String
+  email              String        @unique
+  senhaHash          String
+  googleCalendarId   String?
+  googleRefreshToken String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  agendamentos       Agendamento[]
+  bloqueios          Bloqueio[]
 
   @@map("usuarios")
 }
