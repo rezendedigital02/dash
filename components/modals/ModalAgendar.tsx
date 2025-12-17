@@ -93,21 +93,28 @@ export function ModalAgendar({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    console.log("📝 [ModalAgendar] Iniciando submit...");
+    console.log("📝 [ModalAgendar] Form data:", formData);
+    console.log("📝 [ModalAgendar] Selected date:", selectedDate);
+
     setLoading(true);
     setError("");
 
     // Validação
     if (!formData.pacienteNome.trim()) {
+      console.log("❌ [ModalAgendar] Validação: nome vazio");
       setError("Nome do paciente é obrigatório");
       setLoading(false);
       return;
     }
     if (!formData.pacienteTelefone.trim()) {
+      console.log("❌ [ModalAgendar] Validação: telefone vazio");
       setError("Telefone do paciente é obrigatório");
       setLoading(false);
       return;
     }
     if (!formData.horario) {
+      console.log("❌ [ModalAgendar] Validação: horário não selecionado");
       setError("Selecione um horário");
       setLoading(false);
       return;
@@ -119,24 +126,33 @@ export function ModalAgendar({
       const dataHora = new Date(selectedDate);
       dataHora.setHours(parseInt(hora), parseInt(minuto), 0, 0);
 
+      const payload = {
+        pacienteNome: formData.pacienteNome,
+        pacienteTelefone: formData.pacienteTelefone,
+        pacienteEmail: formData.pacienteEmail || null,
+        dataHora: dataHora.toISOString(),
+        tipo: formData.tipo,
+        observacoes: formData.observacoes || null,
+      };
+
+      console.log("📡 [ModalAgendar] Enviando para API:", payload);
+
       const response = await fetch("/api/agendamentos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pacienteNome: formData.pacienteNome,
-          pacienteTelefone: formData.pacienteTelefone,
-          pacienteEmail: formData.pacienteEmail || null,
-          dataHora: dataHora.toISOString(),
-          tipo: formData.tipo,
-          observacoes: formData.observacoes || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
+      console.log("📡 [ModalAgendar] Response status:", response.status);
+
       const data = await response.json();
+      console.log("📦 [ModalAgendar] Response data:", data);
 
       if (!response.ok) {
         throw new Error(data.error || "Erro ao criar agendamento");
       }
+
+      console.log("✅ [ModalAgendar] Agendamento criado com sucesso!");
 
       // Limpa o formulário e fecha o modal
       setFormData({
@@ -150,6 +166,7 @@ export function ModalAgendar({
       onOpenChange(false);
       onSuccess();
     } catch (err) {
+      console.error("❌ [ModalAgendar] Erro:", err);
       setError(err instanceof Error ? err.message : "Erro ao criar agendamento");
     } finally {
       setLoading(false);
