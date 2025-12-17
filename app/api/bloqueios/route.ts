@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { createCalendarEvent } from "@/lib/google-calendar";
+import { createCalendarEvent, formatBloqueioToEvent } from "@/lib/google-calendar";
 
 // GET /api/bloqueios - Lista bloqueios ativos
 export async function GET() {
+  console.log("[API Bloqueios] GET - Iniciando...");
+
   try {
     const user = await getCurrentUser();
     if (!user) {
+      console.log("[API Bloqueios] GET - Usuário não autenticado");
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
+
+    console.log("[API Bloqueios] GET - Usuário:", user.userId);
 
     const bloqueios = await prisma.bloqueio.findMany({
       where: {
@@ -19,9 +24,10 @@ export async function GET() {
       orderBy: { data: "asc" },
     });
 
+    console.log("[API Bloqueios] GET - Encontrados:", bloqueios.length, "bloqueios");
     return NextResponse.json(bloqueios);
   } catch (error) {
-    console.error("Erro ao listar bloqueios:", error);
+    console.error("[API Bloqueios] GET - Erro:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -31,17 +37,25 @@ export async function GET() {
 
 // POST /api/bloqueios - Cria novo bloqueio
 export async function POST(request: NextRequest) {
+  console.log("[API Bloqueios] POST - Iniciando criação de bloqueio...");
+
   try {
     const user = await getCurrentUser();
     if (!user) {
+      console.log("[API Bloqueios] POST - Usuário não autenticado");
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
+    console.log("[API Bloqueios] POST - Usuário:", user.userId);
+
     const body = await request.json();
+    console.log("[API Bloqueios] POST - Dados recebidos:", JSON.stringify(body, null, 2));
+
     const { tipo, data, horaInicio, horaFim, motivo } = body;
 
     // Validação
     if (!tipo || !data) {
+      console.log("[API Bloqueios] POST - Tipo e data são obrigatórios");
       return NextResponse.json(
         { error: "Tipo e data são obrigatórios" },
         { status: 400 }
@@ -49,6 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (tipo !== "horario" && tipo !== "dia_inteiro") {
+      console.log("[API Bloqueios] POST - Tipo inválido:", tipo);
       return NextResponse.json(
         { error: "Tipo inválido" },
         { status: 400 }
@@ -56,6 +71,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (tipo === "horario" && (!horaInicio || !horaFim)) {
+      console.log("[API Bloqueios] POST - Horários faltando para tipo 'horario'");
       return NextResponse.json(
         { error: "Horário de início e fim são obrigatórios para bloqueio de horário" },
         { status: 400 }
@@ -63,6 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     const dataBloqueio = new Date(data);
+    console.log("[API Bloqueios] POST - Data do bloqueio:", dataBloqueio);
 
     // Busca dados do usuário para Google Calendar
     const usuario = await prisma.usuario.findUnique({
@@ -77,46 +94,34 @@ export async function POST(request: NextRequest) {
 
     // Se Google Calendar estiver conectado, cria evento de bloqueio
     if (usuario?.googleRefreshToken && usuario?.googleCalendarId) {
+      console.log("[API Bloqueios] POST - Criando evento de bloqueio no Google Calendar...");
       try {
-        let startDateTime: Date;
-        let endDateTime: Date;
-
-        if (tipo === "dia_inteiro") {
-          // Bloqueio de dia inteiro: 08:00 às 18:00
-          startDateTime = new Date(dataBloqueio);
-          startDateTime.setHours(8, 0, 0, 0);
-          endDateTime = new Date(dataBloqueio);
-          endDateTime.setHours(18, 0, 0, 0);
-        } else {
-          // Bloqueio de horário específico
-          const [horaIni, minIni] = horaInicio.split(":").map(Number);
-          const [horaFi, minFi] = horaFim.split(":").map(Number);
-          startDateTime = new Date(dataBloqueio);
-          startDateTime.setHours(horaIni, minIni, 0, 0);
-          endDateTime = new Date(dataBloqueio);
-          endDateTime.setHours(horaFi, minFi, 0, 0);
-        }
+        const eventData = formatBloqueioToEvent({
+          tipo,
+          data: dataBloqueio,
+          horaInicio,
+          horaFim,
+          motivo,
+        });
 
         const event = await createCalendarEvent(
           usuario.googleRefreshToken,
           usuario.googleCalendarId,
-          {
-            summary: `BLOQUEADO${motivo ? ` - ${motivo}` : ""}`,
-            description: tipo === "dia_inteiro"
-              ? "Bloqueio de dia inteiro"
-              : `Bloqueio de ${horaInicio} às ${horaFim}`,
-            startDateTime,
-            endDateTime,
-          }
+          eventData
         );
 
         googleEventId = event.id || null;
-      } catch (error) {
-        console.error("Erro ao criar evento de bloqueio no Calendar:", error);
+        console.log("[API Bloqueios] POST - Evento criado no Calendar:", googleEventId);
+      } catch (calendarError) {
+        console.error("[API Bloqueios] POST - Erro ao criar evento no Calendar:", calendarError);
+        // Continua mesmo se falhar no Calendar
       }
+    } else {
+      console.log("[API Bloqueios] POST - Google Calendar não configurado para este usuário");
     }
 
-    // Cria o bloqueio
+    // Cria o bloqueio no banco de dados
+    console.log("[API Bloqueios] POST - Salvando no banco de dados...");
     const bloqueio = await prisma.bloqueio.create({
       data: {
         usuarioId: user.userId,
@@ -129,6 +134,8 @@ export async function POST(request: NextRequest) {
         googleEventId,
       },
     });
+
+    console.log("[API Bloqueios] POST - Bloqueio criado com sucesso:", bloqueio.id);
 
     // Envia webhook para n8n
     await enviarWebhook("bloquear", {
@@ -143,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(bloqueio, { status: 201 });
   } catch (error) {
-    console.error("Erro ao criar bloqueio:", error);
+    console.error("[API Bloqueios] POST - Erro:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -153,8 +160,12 @@ export async function POST(request: NextRequest) {
 
 async function enviarWebhook(tipo: string, dados: any) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
-  if (!webhookUrl) return;
+  if (!webhookUrl) {
+    console.log("[Webhook] URL não configurada, pulando...");
+    return;
+  }
 
+  console.log("[Webhook] Enviando para:", `${webhookUrl}/${tipo}`);
   try {
     await fetch(`${webhookUrl}/${tipo}`, {
       method: "POST",
@@ -164,7 +175,8 @@ async function enviarWebhook(tipo: string, dados: any) {
       },
       body: JSON.stringify(dados),
     });
+    console.log("[Webhook] Enviado com sucesso");
   } catch (error) {
-    console.error("Erro ao enviar webhook:", error);
+    console.error("[Webhook] Erro ao enviar:", error);
   }
 }
