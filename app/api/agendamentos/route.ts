@@ -6,11 +6,16 @@ import { createCalendarEvent, formatAgendamentoToEvent } from "@/lib/google-cale
 
 // GET /api/agendamentos - Lista agendamentos (filtrado por data)
 export async function GET(request: NextRequest) {
+  console.log("[API Agendamentos] GET - Iniciando...");
+
   try {
     const user = await getCurrentUser();
     if (!user) {
+      console.log("[API Agendamentos] GET - Usuário não autenticado");
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
+
+    console.log("[API Agendamentos] GET - Usuário:", user.userId);
 
     const searchParams = request.nextUrl.searchParams;
     const dataStr = searchParams.get("data");
@@ -23,6 +28,7 @@ export async function GET(request: NextRequest) {
         gte: startOfDay(data),
         lte: endOfDay(data),
       };
+      console.log("[API Agendamentos] GET - Filtrando por data:", dataStr);
     }
 
     const agendamentos = await prisma.agendamento.findMany({
@@ -30,9 +36,10 @@ export async function GET(request: NextRequest) {
       orderBy: { dataHora: "asc" },
     });
 
+    console.log("[API Agendamentos] GET - Encontrados:", agendamentos.length, "agendamentos");
     return NextResponse.json(agendamentos);
   } catch (error) {
-    console.error("Erro ao listar agendamentos:", error);
+    console.error("[API Agendamentos] GET - Erro:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -42,17 +49,25 @@ export async function GET(request: NextRequest) {
 
 // POST /api/agendamentos - Cria novo agendamento
 export async function POST(request: NextRequest) {
+  console.log("[API Agendamentos] POST - Iniciando criação de agendamento...");
+
   try {
     const user = await getCurrentUser();
     if (!user) {
+      console.log("[API Agendamentos] POST - Usuário não autenticado");
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
+    console.log("[API Agendamentos] POST - Usuário:", user.userId);
+
     const body = await request.json();
+    console.log("[API Agendamentos] POST - Dados recebidos:", JSON.stringify(body, null, 2));
+
     const { pacienteNome, pacienteTelefone, pacienteEmail, dataHora, tipo, observacoes } = body;
 
     // Validação
     if (!pacienteNome || !pacienteTelefone || !dataHora || !tipo) {
+      console.log("[API Agendamentos] POST - Campos obrigatórios faltando");
       return NextResponse.json(
         { error: "Campos obrigatórios faltando" },
         { status: 400 }
@@ -60,6 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     const dataAgendamento = new Date(dataHora);
+    console.log("[API Agendamentos] POST - Data do agendamento:", dataAgendamento);
 
     // Verifica se o horário está bloqueado
     const bloqueioExistente = await prisma.bloqueio.findFirst({
@@ -74,6 +90,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (bloqueioExistente) {
+      console.log("[API Agendamentos] POST - Bloqueio encontrado:", bloqueioExistente);
+      // Verifica se é bloqueio de dia inteiro ou se o horário está dentro do bloqueio
       if (bloqueioExistente.tipo === "dia_inteiro") {
         return NextResponse.json(
           { error: "Este dia está bloqueado" },
@@ -102,6 +120,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (agendamentoExistente) {
+      console.log("[API Agendamentos] POST - Já existe agendamento no horário");
       return NextResponse.json(
         { error: "Já existe um agendamento neste horário" },
         { status: 400 }
@@ -117,11 +136,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Cria o agendamento
     let googleEventId: string | null = null;
 
-    // Se Google Calendar estiver conectado, cria o evento
+    // Se Google Calendar estiver conectado, cria evento
     if (usuario?.googleRefreshToken && usuario?.googleCalendarId) {
+      console.log("[API Agendamentos] POST - Criando evento no Google Calendar...");
       try {
         const eventData = formatAgendamentoToEvent({
           pacienteNome,
@@ -139,12 +158,17 @@ export async function POST(request: NextRequest) {
         );
 
         googleEventId = event.id || null;
-      } catch (error) {
-        console.error("Erro ao criar evento no Google Calendar:", error);
-        // Continua mesmo sem criar o evento no Calendar
+        console.log("[API Agendamentos] POST - Evento criado no Calendar:", googleEventId);
+      } catch (calendarError) {
+        console.error("[API Agendamentos] POST - Erro ao criar evento no Calendar:", calendarError);
+        // Continua mesmo se falhar no Calendar
       }
+    } else {
+      console.log("[API Agendamentos] POST - Google Calendar não configurado para este usuário");
     }
 
+    // Cria o agendamento no banco de dados
+    console.log("[API Agendamentos] POST - Salvando no banco de dados...");
     const agendamento = await prisma.agendamento.create({
       data: {
         usuarioId: user.userId,
@@ -160,6 +184,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    console.log("[API Agendamentos] POST - Agendamento criado com sucesso:", agendamento.id);
+
     // Envia webhook para n8n (se configurado)
     await enviarWebhook("agendar", {
       agendamentoId: agendamento.id,
@@ -173,7 +199,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(agendamento, { status: 201 });
   } catch (error) {
-    console.error("Erro ao criar agendamento:", error);
+    console.error("[API Agendamentos] POST - Erro:", error);
     return NextResponse.json(
       { error: "Erro interno do servidor" },
       { status: 500 }
@@ -183,8 +209,12 @@ export async function POST(request: NextRequest) {
 
 async function enviarWebhook(tipo: string, dados: any) {
   const webhookUrl = process.env.N8N_WEBHOOK_URL;
-  if (!webhookUrl) return;
+  if (!webhookUrl) {
+    console.log("[Webhook] URL não configurada, pulando...");
+    return;
+  }
 
+  console.log("[Webhook] Enviando para:", `${webhookUrl}/${tipo}`);
   try {
     await fetch(`${webhookUrl}/${tipo}`, {
       method: "POST",
@@ -194,7 +224,8 @@ async function enviarWebhook(tipo: string, dados: any) {
       },
       body: JSON.stringify(dados),
     });
+    console.log("[Webhook] Enviado com sucesso");
   } catch (error) {
-    console.error("Erro ao enviar webhook:", error);
+    console.error("[Webhook] Erro ao enviar:", error);
   }
 }
