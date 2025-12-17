@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3, Menu, X, Phone } from "lucide-react";
+import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3, Menu, X, Phone, Link2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +76,77 @@ export default function DashboardPage() {
   const [selectedHorario, setSelectedHorario] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [syncingGoogle, setSyncingGoogle] = useState(false);
+  const [importingGoogle, setImportingGoogle] = useState(false);
+
+  // Verifica status do Google Calendar
+  const checkGoogleStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/google/status");
+      if (res.ok) {
+        const data = await res.json();
+        setGoogleConnected(data.connected);
+        console.log("📅 [Dashboard] Google Calendar conectado:", data.connected);
+      }
+    } catch (error) {
+      console.error("Erro ao verificar Google:", error);
+    }
+  }, []);
+
+  // Conecta ao Google Calendar
+  async function handleConnectGoogle() {
+    try {
+      const res = await fetch("/api/google/auth");
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.authUrl;
+      }
+    } catch (error) {
+      console.error("Erro ao conectar Google:", error);
+      alert("Erro ao conectar com Google Calendar");
+    }
+  }
+
+  // Sincroniza agendamentos locais com Google Calendar
+  async function handleSyncGoogle() {
+    setSyncingGoogle(true);
+    try {
+      const res = await fetch("/api/google/sync", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Sincronizado! ${data.synced} agendamentos enviados para o Google Calendar.`);
+        fetchData();
+      } else {
+        alert(data.error || "Erro ao sincronizar");
+      }
+    } catch (error) {
+      console.error("Erro ao sincronizar:", error);
+      alert("Erro ao sincronizar com Google Calendar");
+    } finally {
+      setSyncingGoogle(false);
+    }
+  }
+
+  // Importa eventos do Google Calendar para o banco
+  async function handleImportGoogle() {
+    setImportingGoogle(true);
+    try {
+      const res = await fetch("/api/google/import", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Importado! ${data.imported} eventos do Google Calendar.`);
+        fetchData();
+      } else {
+        alert(data.error || "Erro ao importar");
+      }
+    } catch (error) {
+      console.error("Erro ao importar:", error);
+      alert("Erro ao importar do Google Calendar");
+    } finally {
+      setImportingGoogle(false);
+    }
+  }
 
   const fetchData = useCallback(async () => {
     try {
@@ -112,7 +183,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    checkGoogleStatus();
+  }, [fetchData, checkGoogleStatus]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -262,6 +334,39 @@ export default function DashboardPage() {
 
             {/* Desktop buttons */}
             <div className="hidden sm:flex items-center gap-2 sm:gap-3">
+              {!googleConnected ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleConnectGoogle}
+                  className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Conectar Google
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleImportGoogle}
+                    disabled={importingGoogle}
+                    className="text-green-600 border-green-300 hover:bg-green-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${importingGoogle ? "animate-spin" : ""}`} />
+                    {importingGoogle ? "Importando..." : "Importar"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncGoogle}
+                    disabled={syncingGoogle}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${syncingGoogle ? "animate-spin" : ""}`} />
+                    {syncingGoogle ? "Sincronizando..." : "Sincronizar"}
+                  </Button>
+                </>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -288,6 +393,49 @@ export default function DashboardPage() {
           {/* Mobile menu dropdown */}
           {mobileMenuOpen && (
             <div className="sm:hidden mt-3 pt-3 border-t space-y-2">
+              {!googleConnected ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-blue-600"
+                  onClick={() => {
+                    handleConnectGoogle();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Conectar Google Calendar
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-green-600"
+                    onClick={() => {
+                      handleImportGoogle();
+                      setMobileMenuOpen(false);
+                    }}
+                    disabled={importingGoogle}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${importingGoogle ? "animate-spin" : ""}`} />
+                    Importar do Google
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      handleSyncGoogle();
+                      setMobileMenuOpen(false);
+                    }}
+                    disabled={syncingGoogle}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${syncingGoogle ? "animate-spin" : ""}`} />
+                    Sincronizar com Google
+                  </Button>
+                </>
+              )}
               <Button
                 variant="outline"
                 size="sm"
