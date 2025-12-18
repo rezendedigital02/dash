@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3, Menu, X, Phone, Link2, RefreshCw } from "lucide-react";
+import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3, Menu, X, Phone, Link2, RefreshCw, User, Mail, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -513,6 +513,99 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Consultas do Dia */}
+        <Card>
+          <CardHeader className="pb-2 sm:pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-primary" />
+                Consultas do Dia - {format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}
+              </CardTitle>
+              <Badge variant={agendamentos.length > 0 ? "default" : "secondary"}>
+                {agendamentos.length} {agendamentos.length === 1 ? "consulta" : "consultas"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="px-3 sm:px-6">
+            {agendamentos.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <CalendarDays className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Nenhuma consulta agendada para este dia</p>
+                <p className="text-xs text-gray-400 mt-1">Selecione um horário para agendar</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {agendamentos
+                  .sort((a, b) => new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime())
+                  .map((agendamento) => (
+                    <div
+                      key={agendamento.id}
+                      className="p-4 rounded-lg border bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <Badge
+                          variant={agendamento.origem === "manual" ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {TIPOS_CONSULTA[agendamento.tipo] || agendamento.tipo}
+                        </Badge>
+                        <span className="text-lg font-bold text-primary">
+                          {format(new Date(agendamento.dataHora), "HH:mm")}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <span className="font-medium text-sm truncate">
+                            {agendamento.pacienteNome}
+                          </span>
+                        </div>
+
+                        <a
+                          href={`tel:${agendamento.pacienteTelefone}`}
+                          className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary transition-colors"
+                        >
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          {agendamento.pacienteTelefone}
+                        </a>
+
+                        {agendamento.pacienteEmail && (
+                          <a
+                            href={`mailto:${agendamento.pacienteEmail}`}
+                            className="flex items-center gap-2 text-sm text-gray-600 hover:text-primary transition-colors truncate"
+                          >
+                            <Mail className="h-4 w-4 text-gray-400" />
+                            {agendamento.pacienteEmail}
+                          </a>
+                        )}
+
+                        {agendamento.observacoes && (
+                          <div className="flex items-start gap-2 text-sm text-gray-500 pt-2 border-t">
+                            <FileText className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                            <span className="line-clamp-2">{agendamento.observacoes}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t flex items-center justify-between">
+                        <span className="text-xs text-gray-400">
+                          {agendamento.origem === "manual" ? "Agendado manualmente" : "Via WhatsApp"}
+                        </span>
+                        <Badge
+                          variant={agendamento.status === "confirmado" ? "success" : "secondary"}
+                          className="text-xs"
+                        >
+                          {agendamento.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Data selecionada e botão calendário (mobile) */}
         <div className="flex items-center justify-between sm:hidden">
