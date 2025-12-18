@@ -115,7 +115,18 @@ export default function DashboardPage() {
       const res = await fetch("/api/google/sync", { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        alert(`Sincronizado! ${data.synced} agendamentos enviados para o Google Calendar.`);
+        const msgs = [];
+        if (data.syncedAgendamentos > 0) {
+          msgs.push(`${data.syncedAgendamentos} agendamento(s)`);
+        }
+        if (data.syncedBloqueios > 0) {
+          msgs.push(`${data.syncedBloqueios} bloqueio(s)`);
+        }
+        if (msgs.length > 0) {
+          alert(`Sincronizado com sucesso!\n\n${msgs.join(" e ")} enviado(s) para o Google Calendar.`);
+        } else {
+          alert("Tudo já estava sincronizado!");
+        }
         fetchData();
       } else {
         alert(data.error || "Erro ao sincronizar");

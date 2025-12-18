@@ -4,9 +4,10 @@ import prisma from "@/lib/db";
 import {
   createCalendarEvent,
   formatAgendamentoToEvent,
+  formatBloqueioToEvent,
 } from "@/lib/google-calendar";
 
-// POST /api/google/sync - Sincroniza agendamentos sem googleEventId com o Calendar
+// POST /api/google/sync - Sincroniza agendamentos e bloqueios sem googleEventId com o Calendar
 export async function POST() {
   try {
     const user = await getCurrentUser();
@@ -29,7 +30,11 @@ export async function POST() {
       );
     }
 
-    // Busca agendamentos sem googleEventId
+    let syncedAgendamentos = 0;
+    let syncedBloqueios = 0;
+    let errors = 0;
+
+    // ============ SINCRONIZAR AGENDAMENTOS ============
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         usuarioId: user.userId,
@@ -38,8 +43,7 @@ export async function POST() {
       },
     });
 
-    let synced = 0;
-    let errors = 0;
+    console.log(`[Sync] Encontrados ${agendamentos.length} agendamentos para sincronizar`);
 
     for (const agendamento of agendamentos) {
       try {
@@ -59,22 +63,69 @@ export async function POST() {
             where: { id: agendamento.id },
             data: { googleEventId: event.id },
           });
-          synced++;
+          syncedAgendamentos++;
+          console.log(`[Sync] Agendamento ${agendamento.id} sincronizado`);
         }
       } catch (error) {
-        console.error(`Erro ao sincronizar agendamento ${agendamento.id}:`, error);
+        console.error(`[Sync] Erro ao sincronizar agendamento ${agendamento.id}:`, error);
         errors++;
       }
     }
 
+    // ============ SINCRONIZAR BLOQUEIOS ============
+    const bloqueios = await prisma.bloqueio.findMany({
+      where: {
+        usuarioId: user.userId,
+        googleEventId: null,
+        ativo: true,
+      },
+    });
+
+    console.log(`[Sync] Encontrados ${bloqueios.length} bloqueios para sincronizar`);
+
+    for (const bloqueio of bloqueios) {
+      try {
+        const eventData = formatBloqueioToEvent({
+          tipo: bloqueio.tipo,
+          data: new Date(bloqueio.data),
+          horaInicio: bloqueio.horaInicio,
+          horaFim: bloqueio.horaFim,
+          motivo: bloqueio.motivo,
+        });
+
+        const event = await createCalendarEvent(
+          usuario.googleRefreshToken,
+          usuario.googleCalendarId,
+          eventData
+        );
+
+        if (event.id) {
+          await prisma.bloqueio.update({
+            where: { id: bloqueio.id },
+            data: { googleEventId: event.id },
+          });
+          syncedBloqueios++;
+          console.log(`[Sync] Bloqueio ${bloqueio.id} sincronizado`);
+        }
+      } catch (error) {
+        console.error(`[Sync] Erro ao sincronizar bloqueio ${bloqueio.id}:`, error);
+        errors++;
+      }
+    }
+
+    const totalSynced = syncedAgendamentos + syncedBloqueios;
+
     return NextResponse.json({
       success: true,
-      synced,
+      synced: totalSynced,
+      syncedAgendamentos,
+      syncedBloqueios,
       errors,
-      total: agendamentos.length,
+      totalAgendamentos: agendamentos.length,
+      totalBloqueios: bloqueios.length,
     });
   } catch (error) {
-    console.error("Erro na sincronização:", error);
+    console.error("[Sync] Erro na sincronização:", error);
     return NextResponse.json(
       { error: "Erro ao sincronizar" },
       { status: 500 }
