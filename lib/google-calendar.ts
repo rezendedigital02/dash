@@ -203,3 +203,50 @@ export function formatAgendamentoToEvent(agendamento: {
     attendees: agendamento.pacienteEmail ? [{ email: agendamento.pacienteEmail }] : undefined,
   };
 }
+
+// Formata bloqueio para evento do Google Calendar
+export function formatBloqueioToEvent(bloqueio: {
+  tipo: string;
+  data: Date;
+  horaInicio?: string | null;
+  horaFim?: string | null;
+  motivo?: string | null;
+}) {
+  let startDateTime: Date;
+  let endDateTime: Date;
+
+  if (bloqueio.tipo === "dia_inteiro") {
+    // Para bloqueio de dia inteiro, cria evento das 00:00 às 23:59
+    startDateTime = new Date(bloqueio.data);
+    startDateTime.setHours(0, 0, 0, 0);
+
+    endDateTime = new Date(bloqueio.data);
+    endDateTime.setHours(23, 59, 59, 999);
+  } else {
+    // Para bloqueio de horário específico
+    const [horaIni, minIni] = (bloqueio.horaInicio || "08:00").split(":").map(Number);
+    const [horaFim, minFim] = (bloqueio.horaFim || "18:00").split(":").map(Number);
+
+    startDateTime = new Date(bloqueio.data);
+    startDateTime.setHours(horaIni, minIni, 0, 0);
+
+    endDateTime = new Date(bloqueio.data);
+    endDateTime.setHours(horaFim, minFim, 0, 0);
+  }
+
+  const motivo = bloqueio.motivo || (bloqueio.tipo === "dia_inteiro" ? "Dia bloqueado" : "Horário bloqueado");
+
+  return {
+    summary: `🔒 BLOQUEADO - ${motivo}`,
+    description: [
+      `Tipo: ${bloqueio.tipo === "dia_inteiro" ? "Dia Inteiro" : "Horário Específico"}`,
+      bloqueio.motivo ? `Motivo: ${bloqueio.motivo}` : null,
+      "",
+      "⚠️ Este horário está bloqueado para agendamentos.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    startDateTime,
+    endDateTime,
+  };
+}
