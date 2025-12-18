@@ -39,8 +39,28 @@ export async function GET(request: NextRequest) {
       },
       select: {
         dataHora: true,
+        tipo: true,
       },
     });
+
+    // Agrupa por tipo para o gráfico de pizza
+    const tiposMap = new Map<string, number>();
+    const TIPOS_LABEL: Record<string, string> = {
+      consulta: "Consulta",
+      retorno: "Retorno",
+      procedimento: "Procedimento",
+      avaliacao: "Avaliação",
+      emergencia: "Emergência",
+    };
+
+    agendamentos.forEach((a) => {
+      const tipoLabel = TIPOS_LABEL[a.tipo] || a.tipo;
+      tiposMap.set(tipoLabel, (tiposMap.get(tipoLabel) || 0) + 1);
+    });
+
+    const tiposData = Array.from(tiposMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
 
     let chartData: { name: string; agendamentos: number }[] = [];
 
@@ -87,6 +107,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       chartData,
+      tiposData,
       total: agendamentos.length,
     });
   } catch (error) {
