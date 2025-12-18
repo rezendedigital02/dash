@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -65,11 +65,11 @@ export function ModalAgendar({
   });
 
   // Atualiza o horário quando selectedHorario muda
-  useState(() => {
+  useEffect(() => {
     if (selectedHorario) {
       setFormData((prev) => ({ ...prev, horario: selectedHorario }));
     }
-  });
+  }, [selectedHorario]);
 
   function handleChange(field: string, value: string) {
     setFormData((prev) => ({ ...prev, [field]: value }));
