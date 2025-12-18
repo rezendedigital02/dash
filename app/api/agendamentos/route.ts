@@ -4,6 +4,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { startOfDay, endOfDay } from "date-fns";
 import { createCalendarEvent, formatAgendamentoToEvent } from "@/lib/google-calendar";
 
+// Timezone do Brasil (UTC-3)
+const TIMEZONE_OFFSET = -3 * 60 * 60 * 1000;
+
 // GET /api/agendamentos - Lista agendamentos (filtrado por data)
 export async function GET(request: NextRequest) {
   console.log("🔍 [API Agendamentos] GET - Iniciando...");
@@ -23,12 +26,17 @@ export async function GET(request: NextRequest) {
     let whereClause: any = { usuarioId: user.userId };
 
     if (dataStr) {
-      const data = new Date(dataStr);
+      // Cria as datas de início e fim do dia na timezone local
+      const dataInicio = new Date(`${dataStr}T00:00:00`);
+      const dataFim = new Date(`${dataStr}T23:59:59.999`);
+
       whereClause.dataHora = {
-        gte: startOfDay(data),
-        lte: endOfDay(data),
+        gte: dataInicio,
+        lte: dataFim,
       };
       console.log("📅 [API Agendamentos] GET - Filtrando por data:", dataStr);
+      console.log("📅 [API Agendamentos] GET - Início:", dataInicio.toISOString());
+      console.log("📅 [API Agendamentos] GET - Fim:", dataFim.toISOString());
     }
 
     const agendamentos = await prisma.agendamento.findMany({
@@ -37,6 +45,22 @@ export async function GET(request: NextRequest) {
     });
 
     console.log("✅ [API Agendamentos] GET - Encontrados:", agendamentos.length, "agendamentos");
+    if (agendamentos.length > 0) {
+      console.log("📋 [API Agendamentos] GET - Primeiro:", JSON.stringify(agendamentos[0], null, 2));
+    }
+
+    // Log de todos os agendamentos do usuário para debug
+    if (agendamentos.length === 0) {
+      const todos = await prisma.agendamento.findMany({
+        where: { usuarioId: user.userId },
+        take: 5,
+        orderBy: { dataHora: "desc" },
+      });
+      console.log("🔍 [API Agendamentos] GET - Últimos 5 agendamentos do usuário:",
+        todos.map(a => ({ id: a.id, dataHora: a.dataHora, nome: a.pacienteNome }))
+      );
+    }
+
     return NextResponse.json(agendamentos);
   } catch (error) {
     console.error("❌ [API Agendamentos] GET - Erro:", error);
