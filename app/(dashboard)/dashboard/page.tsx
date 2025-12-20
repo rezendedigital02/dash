@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3, Menu, X, Phone, Link2, RefreshCw, User, Mail, FileText } from "lucide-react";
+import { CalendarDays, Clock, Lock, LogOut, Plus, ChevronLeft, ChevronRight, BarChart3, Menu, X, Phone, Link2, RefreshCw, User, Mail, FileText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,17 +80,37 @@ export default function DashboardPage() {
   const [syncingGoogle, setSyncingGoogle] = useState(false);
   const [importingGoogle, setImportingGoogle] = useState(false);
 
-  // Verifica status do Google Calendar
+  // Verifica status do Google Calendar e auto-sincroniza
   const checkGoogleStatus = useCallback(async () => {
+    console.log("[Dashboard] Verificando status do Google Calendar...");
     try {
       const res = await fetch("/api/google/status");
       if (res.ok) {
         const data = await res.json();
         setGoogleConnected(data.connected);
-        console.log("📅 [Dashboard] Google Calendar conectado:", data.connected);
+        console.log("[Dashboard] Google Calendar conectado:", data.connected);
+
+        // Se estiver conectado, faz auto-import silencioso
+        if (data.connected) {
+          console.log("[Dashboard] Iniciando auto-import do Google Calendar...");
+          try {
+            const importRes = await fetch("/api/google/import", { method: "POST" });
+            if (importRes.ok) {
+              const importData = await importRes.json();
+              console.log("[Dashboard] Auto-import concluído:", importData);
+              if (importData.imported > 0) {
+                console.log(`[Dashboard] ${importData.imported} novos eventos importados`);
+              }
+            } else {
+              console.error("[Dashboard] Erro no auto-import:", await importRes.text());
+            }
+          } catch (importError) {
+            console.error("[Dashboard] Erro ao fazer auto-import:", importError);
+          }
+        }
       }
     } catch (error) {
-      console.error("Erro ao verificar Google:", error);
+      console.error("[Dashboard] Erro ao verificar Google:", error);
     }
   }, []);
 
@@ -193,8 +213,17 @@ export default function DashboardPage() {
   }, [selectedDate]);
 
   useEffect(() => {
-    fetchData();
-    checkGoogleStatus();
+    console.log("[Dashboard] useEffect - Iniciando carregamento...");
+
+    // Função assíncrona para carregar dados na ordem correta
+    const loadDashboard = async () => {
+      // Primeiro verifica Google e faz auto-import
+      await checkGoogleStatus();
+      // Depois carrega os dados (incluindo os recém-importados)
+      await fetchData();
+    };
+
+    loadDashboard();
   }, [fetchData, checkGoogleStatus]);
 
   async function handleLogout() {
@@ -204,13 +233,43 @@ export default function DashboardPage() {
   }
 
   async function handleRemoverBloqueio(id: string) {
+    console.log("[Dashboard] Removendo bloqueio:", id);
     try {
       const response = await fetch(`/api/bloqueios/${id}`, { method: "DELETE" });
+      console.log("[Dashboard] Resposta remover bloqueio:", response.status);
       if (response.ok) {
         fetchData();
+      } else {
+        const data = await response.json();
+        console.error("[Dashboard] Erro ao remover bloqueio:", data);
+        alert(data.error || "Erro ao remover bloqueio");
       }
     } catch (error) {
-      console.error("Erro ao remover bloqueio:", error);
+      console.error("[Dashboard] Erro ao remover bloqueio:", error);
+      alert("Erro ao remover bloqueio");
+    }
+  }
+
+  async function handleCancelarAgendamento(id: string, pacienteNome: string) {
+    console.log("[Dashboard] Cancelando agendamento:", id);
+    if (!confirm(`Tem certeza que deseja cancelar o agendamento de ${pacienteNome}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/agendamentos/${id}`, { method: "DELETE" });
+      console.log("[Dashboard] Resposta cancelar agendamento:", response.status);
+      if (response.ok) {
+        alert("Agendamento cancelado com sucesso!");
+        fetchData();
+      } else {
+        const data = await response.json();
+        console.error("[Dashboard] Erro ao cancelar agendamento:", data);
+        alert(data.error || "Erro ao cancelar agendamento");
+      }
+    } catch (error) {
+      console.error("[Dashboard] Erro ao cancelar agendamento:", error);
+      alert("Erro ao cancelar agendamento");
     }
   }
 
@@ -604,12 +663,24 @@ export default function DashboardPage() {
                         <span className="text-xs text-gray-400">
                           {agendamento.origem === "manual" ? "Agendado manualmente" : "Via WhatsApp"}
                         </span>
-                        <Badge
-                          variant={agendamento.status === "confirmado" ? "success" : "secondary"}
-                          className="text-xs"
-                        >
-                          {agendamento.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={agendamento.status === "confirmado" ? "success" : "secondary"}
+                            className="text-xs"
+                          >
+                            {agendamento.status}
+                          </Badge>
+                          {agendamento.status === "confirmado" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleCancelarAgendamento(agendamento.id, agendamento.pacienteNome)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -760,22 +831,32 @@ export default function DashboardPage() {
                           {horario}
                         </span>
                         {status === "confirmado" && data && (
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                              <Badge variant="success" className="text-[10px] sm:text-xs">
-                                {TIPOS_CONSULTA[(data as Agendamento).tipo] || (data as Agendamento).tipo}
-                              </Badge>
-                              <span className="font-medium text-xs sm:text-sm truncate">
-                                {(data as Agendamento).pacienteNome}
-                              </span>
+                          <div className="min-w-0 flex-1 flex items-center justify-between">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                <Badge variant="success" className="text-[10px] sm:text-xs">
+                                  {TIPOS_CONSULTA[(data as Agendamento).tipo] || (data as Agendamento).tipo}
+                                </Badge>
+                                <span className="font-medium text-xs sm:text-sm truncate">
+                                  {(data as Agendamento).pacienteNome}
+                                </span>
+                              </div>
+                              <a
+                                href={`tel:${(data as Agendamento).pacienteTelefone}`}
+                                className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 hover:text-primary"
+                              >
+                                <Phone className="h-3 w-3" />
+                                {(data as Agendamento).pacienteTelefone}
+                              </a>
                             </div>
-                            <a
-                              href={`tel:${(data as Agendamento).pacienteTelefone}`}
-                              className="text-[10px] sm:text-xs text-gray-500 flex items-center gap-1 hover:text-primary"
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                              onClick={() => handleCancelarAgendamento((data as Agendamento).id, (data as Agendamento).pacienteNome)}
                             >
-                              <Phone className="h-3 w-3" />
-                              {(data as Agendamento).pacienteTelefone}
-                            </a>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         )}
                         {status === "bloqueado" && data && (
