@@ -58,36 +58,86 @@ export async function createCalendarEvent(
     startDateTime: Date;
     endDateTime: Date;
     attendees?: { email: string }[];
+    isAllDay?: boolean;
   }
 ) {
+  console.log("[createCalendarEvent] Iniciando criação de evento...");
+  console.log("[createCalendarEvent] Calendar ID:", calendarId);
+  console.log("[createCalendarEvent] Evento:", JSON.stringify({
+    summary: event.summary,
+    startDateTime: event.startDateTime.toISOString(),
+    endDateTime: event.endDateTime.toISOString(),
+    isAllDay: event.isAllDay,
+  }, null, 2));
+
   const calendar = getCalendarClient(refreshToken);
 
-  const eventData: calendar_v3.Schema$Event = {
-    summary: event.summary,
-    description: event.description,
-    start: {
-      dateTime: event.startDateTime.toISOString(),
-      timeZone: "America/Sao_Paulo",
-    },
-    end: {
-      dateTime: event.endDateTime.toISOString(),
-      timeZone: "America/Sao_Paulo",
-    },
-    attendees: event.attendees,
-    reminders: {
-      useDefault: false,
-      overrides: [
-        { method: "popup", minutes: 30 },
-        { method: "email", minutes: 60 },
-      ],
-    },
-  };
+  let eventData: calendar_v3.Schema$Event;
+
+  if (event.isAllDay) {
+    // Evento de dia inteiro usa formato 'date' (YYYY-MM-DD)
+    const startDate = event.startDateTime.toISOString().split("T")[0];
+    const endDate = event.endDateTime.toISOString().split("T")[0];
+
+    console.log("[createCalendarEvent] Evento de dia inteiro:");
+    console.log("[createCalendarEvent] - Start date:", startDate);
+    console.log("[createCalendarEvent] - End date:", endDate);
+
+    eventData = {
+      summary: event.summary,
+      description: event.description,
+      start: {
+        date: startDate,
+        timeZone: "America/Sao_Paulo",
+      },
+      end: {
+        date: endDate,
+        timeZone: "America/Sao_Paulo",
+      },
+      transparency: "opaque", // Marca como "ocupado" no calendário
+      reminders: {
+        useDefault: false,
+        overrides: [],
+      },
+    };
+  } else {
+    // Evento com horário específico usa formato 'dateTime'
+    console.log("[createCalendarEvent] Evento com horário específico:");
+    console.log("[createCalendarEvent] - Start dateTime:", event.startDateTime.toISOString());
+    console.log("[createCalendarEvent] - End dateTime:", event.endDateTime.toISOString());
+
+    eventData = {
+      summary: event.summary,
+      description: event.description,
+      start: {
+        dateTime: event.startDateTime.toISOString(),
+        timeZone: "America/Sao_Paulo",
+      },
+      end: {
+        dateTime: event.endDateTime.toISOString(),
+        timeZone: "America/Sao_Paulo",
+      },
+      attendees: event.attendees,
+      transparency: "opaque", // Marca como "ocupado" no calendário
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: "popup", minutes: 30 },
+          { method: "email", minutes: 60 },
+        ],
+      },
+    };
+  }
+
+  console.log("[createCalendarEvent] EventData final:", JSON.stringify(eventData, null, 2));
 
   const response = await calendar.events.insert({
     calendarId,
     requestBody: eventData,
     sendUpdates: "all",
   });
+
+  console.log("[createCalendarEvent] Evento criado com sucesso. ID:", response.data.id);
 
   return response.data;
 }
@@ -212,31 +262,60 @@ export function formatBloqueioToEvent(bloqueio: {
   horaFim?: string | null;
   motivo?: string | null;
 }) {
+  console.log("[formatBloqueioToEvent] Iniciando formatação de bloqueio...");
+  console.log("[formatBloqueioToEvent] Dados recebidos:", JSON.stringify({
+    tipo: bloqueio.tipo,
+    data: bloqueio.data,
+    horaInicio: bloqueio.horaInicio,
+    horaFim: bloqueio.horaFim,
+    motivo: bloqueio.motivo,
+  }, null, 2));
+
   let startDateTime: Date;
   let endDateTime: Date;
+  let isAllDay = false;
+
+  // Cria uma data base no timezone correto
+  const dataBase = new Date(bloqueio.data);
+  console.log("[formatBloqueioToEvent] Data base:", dataBase.toISOString());
 
   if (bloqueio.tipo === "dia_inteiro") {
-    // Para bloqueio de dia inteiro, cria evento das 00:00 às 23:59
-    startDateTime = new Date(bloqueio.data);
+    isAllDay = true;
+    // Para bloqueio de dia inteiro, usa evento de dia inteiro do Google Calendar
+    // O evento de dia inteiro vai das 00:00 de um dia às 00:00 do dia seguinte
+    startDateTime = new Date(dataBase);
     startDateTime.setHours(0, 0, 0, 0);
 
-    endDateTime = new Date(bloqueio.data);
-    endDateTime.setHours(23, 59, 59, 999);
+    endDateTime = new Date(dataBase);
+    endDateTime.setDate(endDateTime.getDate() + 1);
+    endDateTime.setHours(0, 0, 0, 0);
+
+    console.log("[formatBloqueioToEvent] Bloqueio dia inteiro:");
+    console.log("[formatBloqueioToEvent] - Start:", startDateTime.toISOString());
+    console.log("[formatBloqueioToEvent] - End:", endDateTime.toISOString());
   } else {
     // Para bloqueio de horário específico
     const [horaIni, minIni] = (bloqueio.horaInicio || "08:00").split(":").map(Number);
     const [horaFim, minFim] = (bloqueio.horaFim || "18:00").split(":").map(Number);
 
-    startDateTime = new Date(bloqueio.data);
+    console.log("[formatBloqueioToEvent] Horário específico - Início:", horaIni, ":", minIni);
+    console.log("[formatBloqueioToEvent] Horário específico - Fim:", horaFim, ":", minFim);
+
+    // Cria as datas com o horário correto
+    startDateTime = new Date(dataBase);
     startDateTime.setHours(horaIni, minIni, 0, 0);
 
-    endDateTime = new Date(bloqueio.data);
+    endDateTime = new Date(dataBase);
     endDateTime.setHours(horaFim, minFim, 0, 0);
+
+    console.log("[formatBloqueioToEvent] Bloqueio horário específico:");
+    console.log("[formatBloqueioToEvent] - Start:", startDateTime.toISOString());
+    console.log("[formatBloqueioToEvent] - End:", endDateTime.toISOString());
   }
 
   const motivo = bloqueio.motivo || (bloqueio.tipo === "dia_inteiro" ? "Dia bloqueado" : "Horário bloqueado");
 
-  return {
+  const result = {
     summary: `🔒 BLOQUEADO - ${motivo}`,
     description: [
       `Tipo: ${bloqueio.tipo === "dia_inteiro" ? "Dia Inteiro" : "Horário Específico"}`,
@@ -248,5 +327,15 @@ export function formatBloqueioToEvent(bloqueio: {
       .join("\n"),
     startDateTime,
     endDateTime,
+    isAllDay,
   };
+
+  console.log("[formatBloqueioToEvent] Resultado formatado:", JSON.stringify({
+    summary: result.summary,
+    startDateTime: result.startDateTime.toISOString(),
+    endDateTime: result.endDateTime.toISOString(),
+    isAllDay: result.isAllDay,
+  }, null, 2));
+
+  return result;
 }
