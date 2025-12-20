@@ -278,16 +278,18 @@ export function formatBloqueioToEvent(bloqueio: {
   const dataBase = new Date(bloqueio.data);
   console.log("[formatBloqueioToEvent] Data base:", dataBase.toISOString());
 
+  // Extrai ano, mês e dia da data base
+  const ano = dataBase.getFullYear();
+  const mes = dataBase.getMonth();
+  const dia = dataBase.getDate();
+
   if (bloqueio.tipo === "dia_inteiro") {
-    // Para bloqueio de dia inteiro, cria evento das 08:00 às 18:00
-    // Isso garante que a API do Google Calendar veja como "ocupado" nesses horários
-    startDateTime = new Date(dataBase);
-    startDateTime.setHours(8, 0, 0, 0);
+    // Para bloqueio de dia inteiro, cria evento das 08:00 às 18:00 (horário de São Paulo)
+    // Compensa o fuso horário GMT-3 adicionando 3 horas ao UTC
+    startDateTime = new Date(Date.UTC(ano, mes, dia, 11, 0, 0)); // 08:00 BRT = 11:00 UTC
+    endDateTime = new Date(Date.UTC(ano, mes, dia, 21, 0, 0));   // 18:00 BRT = 21:00 UTC
 
-    endDateTime = new Date(dataBase);
-    endDateTime.setHours(18, 0, 0, 0);
-
-    console.log("[formatBloqueioToEvent] Bloqueio dia inteiro (08:00-18:00):");
+    console.log("[formatBloqueioToEvent] Bloqueio dia inteiro (08:00-18:00 BRT):");
     console.log("[formatBloqueioToEvent] - Start:", startDateTime.toISOString());
     console.log("[formatBloqueioToEvent] - End:", endDateTime.toISOString());
   } else {
@@ -298,14 +300,11 @@ export function formatBloqueioToEvent(bloqueio: {
     console.log("[formatBloqueioToEvent] Horário específico - Início:", horaIni, ":", minIni);
     console.log("[formatBloqueioToEvent] Horário específico - Fim:", horaFim, ":", minFim);
 
-    // Cria as datas com o horário correto
-    startDateTime = new Date(dataBase);
-    startDateTime.setHours(horaIni, minIni, 0, 0);
+    // Compensa o fuso horário GMT-3 (adiciona 3 horas ao UTC)
+    startDateTime = new Date(Date.UTC(ano, mes, dia, horaIni + 3, minIni, 0));
+    endDateTime = new Date(Date.UTC(ano, mes, dia, horaFim + 3, minFim, 0));
 
-    endDateTime = new Date(dataBase);
-    endDateTime.setHours(horaFim, minFim, 0, 0);
-
-    console.log("[formatBloqueioToEvent] Bloqueio horário específico:");
+    console.log("[formatBloqueioToEvent] Bloqueio horário específico (BRT):");
     console.log("[formatBloqueioToEvent] - Start:", startDateTime.toISOString());
     console.log("[formatBloqueioToEvent] - End:", endDateTime.toISOString());
   }
