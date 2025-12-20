@@ -273,24 +273,21 @@ export function formatBloqueioToEvent(bloqueio: {
 
   let startDateTime: Date;
   let endDateTime: Date;
-  let isAllDay = false;
 
   // Cria uma data base no timezone correto
   const dataBase = new Date(bloqueio.data);
   console.log("[formatBloqueioToEvent] Data base:", dataBase.toISOString());
 
   if (bloqueio.tipo === "dia_inteiro") {
-    isAllDay = true;
-    // Para bloqueio de dia inteiro, usa evento de dia inteiro do Google Calendar
-    // O evento de dia inteiro vai das 00:00 de um dia às 00:00 do dia seguinte
+    // Para bloqueio de dia inteiro, cria evento das 08:00 às 18:00
+    // Isso garante que a API do Google Calendar veja como "ocupado" nesses horários
     startDateTime = new Date(dataBase);
-    startDateTime.setHours(0, 0, 0, 0);
+    startDateTime.setHours(8, 0, 0, 0);
 
     endDateTime = new Date(dataBase);
-    endDateTime.setDate(endDateTime.getDate() + 1);
-    endDateTime.setHours(0, 0, 0, 0);
+    endDateTime.setHours(18, 0, 0, 0);
 
-    console.log("[formatBloqueioToEvent] Bloqueio dia inteiro:");
+    console.log("[formatBloqueioToEvent] Bloqueio dia inteiro (08:00-18:00):");
     console.log("[formatBloqueioToEvent] - Start:", startDateTime.toISOString());
     console.log("[formatBloqueioToEvent] - End:", endDateTime.toISOString());
   } else {
@@ -327,7 +324,7 @@ export function formatBloqueioToEvent(bloqueio: {
       .join("\n"),
     startDateTime,
     endDateTime,
-    isAllDay,
+    isAllDay: false, // Sempre false para que apareça como evento com horário
   };
 
   console.log("[formatBloqueioToEvent] Resultado formatado:", JSON.stringify({
