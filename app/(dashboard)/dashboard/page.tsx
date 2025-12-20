@@ -276,6 +276,7 @@ export default function DashboardPage() {
   function getHorarioStatus(horario: string) {
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
+    // Verifica bloqueio de dia inteiro
     const bloqueioInteiro = bloqueios.find(
       (b) => b.ativo && b.tipo === "dia_inteiro" && format(new Date(b.data), "yyyy-MM-dd") === dateStr
     );
@@ -283,6 +284,7 @@ export default function DashboardPage() {
       return { status: "bloqueado", data: bloqueioInteiro };
     }
 
+    // Verifica bloqueio de horário específico
     const bloqueioHorario = bloqueios.find((b) => {
       if (!b.ativo || b.tipo !== "horario") return false;
       const bloqDate = format(new Date(b.data), "yyyy-MM-dd");
@@ -296,9 +298,34 @@ export default function DashboardPage() {
       return { status: "bloqueado", data: bloqueioHorario };
     }
 
+    // Verifica agendamentos - considera duração do evento (não apenas horário de início)
     const agendamento = agendamentos.find((a) => {
-      const agendHora = format(new Date(a.dataHora), "HH:mm");
-      return agendHora === horario && a.status === "confirmado";
+      if (a.status !== "confirmado") return false;
+
+      const agendDate = format(new Date(a.dataHora), "yyyy-MM-dd");
+      if (agendDate !== dateStr) return false;
+
+      const agendHoraInicio = format(new Date(a.dataHora), "HH:mm");
+      const horaInicioMinutos = parseInt(agendHoraInicio.split(":")[0]) * 60 + parseInt(agendHoraInicio.split(":")[1]);
+      const horarioMinutos = parseInt(horario.split(":")[0]) * 60 + parseInt(horario.split(":")[1]);
+
+      // Tenta extrair duração das observações (formato: [DURAÇÃO: X minutos])
+      let duracao = 30; // padrão 30 minutos
+      if (a.observacoes) {
+        const duracaoMatch = a.observacoes.match(/\[DURAÇÃO:\s*(\d+)\s*minutos?\]/i);
+        if (duracaoMatch) {
+          duracao = parseInt(duracaoMatch[1]);
+        }
+      }
+      // Se não tem telefone (importado) e não tem duração específica, assume 60 min
+      if (!a.pacienteTelefone && duracao === 30) {
+        duracao = 60;
+      }
+
+      const horaFimMinutos = horaInicioMinutos + duracao;
+
+      // Verifica se o horário atual está dentro do intervalo do agendamento
+      return horarioMinutos >= horaInicioMinutos && horarioMinutos < horaFimMinutos;
     });
     if (agendamento) {
       return { status: "confirmado", data: agendamento };
@@ -672,12 +699,13 @@ export default function DashboardPage() {
                           </Badge>
                           {agendamento.status === "confirmado" && (
                             <Button
-                              variant="ghost"
+                              variant="destructive"
                               size="sm"
-                              className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              className="h-7 px-3"
                               onClick={() => handleCancelarAgendamento(agendamento.id, agendamento.pacienteNome)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Cancelar
                             </Button>
                           )}
                         </div>
@@ -850,12 +878,13 @@ export default function DashboardPage() {
                               </a>
                             </div>
                             <Button
-                              variant="ghost"
+                              variant="destructive"
                               size="sm"
-                              className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                              className="h-7 px-2 flex-shrink-0"
                               onClick={() => handleCancelarAgendamento((data as Agendamento).id, (data as Agendamento).pacienteNome)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Cancelar</span>
                             </Button>
                           </div>
                         )}

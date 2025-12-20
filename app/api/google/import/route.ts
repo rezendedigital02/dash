@@ -83,6 +83,15 @@ export async function POST() {
         // Extrai informações do evento
         const summary = event.summary || "Consulta";
         const dataHora = new Date(event.start?.dateTime || event.start?.date || "");
+        const dataFim = event.end?.dateTime ? new Date(event.end.dateTime) : null;
+
+        // Calcula duração em minutos
+        let duracaoMinutos = 30; // padrão
+        if (dataFim) {
+          duracaoMinutos = Math.round((dataFim.getTime() - dataHora.getTime()) / 60000);
+        }
+
+        console.log("📥 [Google Import] Duração calculada:", duracaoMinutos, "minutos");
 
         // Tenta extrair nome do paciente do título
         // Formatos esperados: "Consulta: Nome", "Nome - Consulta", "Nome"
@@ -110,11 +119,20 @@ export async function POST() {
         // Limpa o nome
         pacienteNome = pacienteNome.trim() || "Paciente (importado)";
 
+        // Monta observações com duração
+        const observacoesParts = [];
+        if (event.description) {
+          observacoesParts.push(event.description);
+        }
+        observacoesParts.push(`[DURAÇÃO: ${duracaoMinutos} minutos]`);
+        const observacoes = observacoesParts.join("\n");
+
         console.log("📥 [Google Import] Importando:", {
           summary,
           pacienteNome,
           tipo,
           dataHora,
+          duracaoMinutos,
           googleEventId: event.id,
         });
 
@@ -127,7 +145,7 @@ export async function POST() {
             pacienteEmail: event.attendees?.[0]?.email || null,
             dataHora,
             tipo,
-            observacoes: event.description || null,
+            observacoes,
             origem: "agente_ia", // Marca como vindo de fora
             status: "confirmado",
             googleEventId: event.id,
