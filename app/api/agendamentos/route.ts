@@ -23,7 +23,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const dataStr = searchParams.get("data");
 
-    let whereClause: any = { usuarioId: user.userId };
+    let whereClause: any = {
+      usuarioId: user.userId,
+      status: "confirmado", // Só retorna agendamentos confirmados (não cancelados)
+    };
 
     if (dataStr) {
       // Cria as datas de início e fim do dia na timezone local
@@ -38,6 +41,8 @@ export async function GET(request: NextRequest) {
       console.log("📅 [API Agendamentos] GET - Início:", dataInicio.toISOString());
       console.log("📅 [API Agendamentos] GET - Fim:", dataFim.toISOString());
     }
+
+    console.log("📅 [API Agendamentos] GET - Filtrando apenas status: confirmado");
 
     const agendamentos = await prisma.agendamento.findMany({
       where: whereClause,
