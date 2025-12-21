@@ -286,10 +286,11 @@ export function ModalAgendar({
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className="w-full sm:w-auto"
             >
               Cancelar
             </Button>
-            <Button type="submit" variant="success" disabled={loading}>
+            <Button type="submit" variant="success" disabled={loading} className="w-full sm:w-auto">
               {loading ? "Salvando..." : "Confirmar Agendamento"}
             </Button>
           </DialogFooter>
