@@ -721,14 +721,15 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between sm:hidden">
           <button
             onClick={() => setShowCalendar(!showCalendar)}
-            className="flex items-center gap-2 text-lg font-semibold text-gray-900"
+            className="flex items-center gap-2 text-base font-semibold text-gray-900"
           >
             <CalendarDays className="h-5 w-5 text-primary" />
             {format(selectedDate, "dd MMM yyyy", { locale: ptBR })}
             <ChevronRight className={`h-4 w-4 transition-transform ${showCalendar ? "rotate-90" : ""}`} />
           </button>
-          <Button onClick={() => setModalBloquearOpen(true)} variant="destructive" size="sm">
-            <Lock className="h-4 w-4" />
+          <Button onClick={() => setModalBloquearOpen(true)} variant="destructive" size="sm" className="min-w-[90px]">
+            <Lock className="h-4 w-4 mr-1" />
+            <span className="text-xs">Bloquear</span>
           </Button>
         </div>
 
@@ -880,11 +881,11 @@ export default function DashboardPage() {
                             <Button
                               variant="destructive"
                               size="sm"
-                              className="h-7 px-2 flex-shrink-0"
+                              className="h-8 px-2 sm:px-3 flex-shrink-0 min-w-[70px]"
                               onClick={() => handleCancelarAgendamento((data as Agendamento).id, (data as Agendamento).pacienteNome)}
                             >
-                              <Trash2 className="h-4 w-4 sm:mr-1" />
-                              <span className="hidden sm:inline">Cancelar</span>
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              <span className="text-xs">Cancelar</span>
                             </Button>
                           </div>
                         )}
@@ -903,12 +904,12 @@ export default function DashboardPage() {
                       {status === "livre" && (
                         <Button
                           size="sm"
-                          variant="outline"
-                          className="h-8 px-2 sm:px-3 flex-shrink-0"
+                          variant="default"
+                          className="h-8 px-2 sm:px-3 flex-shrink-0 min-w-[70px]"
                           onClick={() => openAgendarModal(horario)}
                         >
-                          <Plus className="h-4 w-4 sm:mr-1" />
-                          <span className="hidden sm:inline">Agendar</span>
+                          <Plus className="h-4 w-4 mr-1" />
+                          <span className="text-xs">Agendar</span>
                         </Button>
                       )}
                     </div>
@@ -956,13 +957,13 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <Button
-                        variant="ghost"
+                        variant="destructive"
                         size="sm"
                         onClick={() => handleRemoverBloqueio(bloqueio.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-100 h-8 px-2 sm:px-3 flex-shrink-0"
+                        className="h-8 px-2 sm:px-3 flex-shrink-0 min-w-[80px]"
                       >
-                        <span className="hidden sm:inline">Remover</span>
-                        <X className="h-4 w-4 sm:hidden" />
+                        <X className="h-4 w-4 mr-1" />
+                        <span className="text-xs">Remover</span>
                       </Button>
                     </div>
                   ))}

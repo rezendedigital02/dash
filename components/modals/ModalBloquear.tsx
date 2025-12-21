@@ -212,10 +212,11 @@ export function ModalBloquear({
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className="w-full sm:w-auto"
             >
               Cancelar
             </Button>
-            <Button type="submit" variant="destructive" disabled={loading}>
+            <Button type="submit" variant="destructive" disabled={loading} className="w-full sm:w-auto">
               {loading ? "Salvando..." : "Confirmar Bloqueio"}
             </Button>
           </DialogFooter>
