@@ -236,7 +236,7 @@ export function formatAgendamentoToEvent(agendamento: {
   };
 
   const endDateTime = new Date(agendamento.dataHora);
-  endDateTime.setMinutes(endDateTime.getMinutes() + 30); // Duração padrão: 30 min
+  endDateTime.setMinutes(endDateTime.getMinutes() + 60); // Duração padrão: 1 hora
 
   return {
     summary: `${tiposLabel[agendamento.tipo] || agendamento.tipo} - ${agendamento.pacienteNome}`,
