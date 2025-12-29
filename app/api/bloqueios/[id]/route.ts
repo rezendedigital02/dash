@@ -3,6 +3,8 @@ import prisma from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { deleteCalendarEvent } from "@/lib/google-calendar";
 
+export const dynamic = 'force-dynamic';
+
 // DELETE /api/bloqueios/[id] - Remove bloqueio
 export async function DELETE(
   request: NextRequest,

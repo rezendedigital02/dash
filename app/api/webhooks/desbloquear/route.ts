@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
+
 // DELETE /api/webhooks/desbloquear - Webhook para remover bloqueio (usado pelo agente IA)
 export async function DELETE(request: NextRequest) {
   try {

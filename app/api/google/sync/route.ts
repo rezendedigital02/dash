@@ -7,6 +7,8 @@ import {
   formatBloqueioToEvent,
 } from "@/lib/google-calendar";
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/google/sync - Sincroniza agendamentos e bloqueios sem googleEventId com o Calendar
 export async function POST() {
   try {
