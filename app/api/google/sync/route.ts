@@ -126,8 +126,18 @@ export async function POST() {
     });
   } catch (error) {
     console.error("[Sync] Erro na sincronização:", error);
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes("invalid_grant") || errorMessage.includes("Token")) {
+      return NextResponse.json(
+        { error: "Token do Google expirado. Por favor, reconecte sua conta Google." },
+        { status: 401 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Erro ao sincronizar" },
+      { error: `Erro ao sincronizar: ${errorMessage.substring(0, 100)}` },
       { status: 500 }
     );
   }

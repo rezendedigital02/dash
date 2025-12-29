@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
     let googleEventId: string | null = null;
+    let googleCalendarWarning: string | null = null;
 
     // Se Google Calendar estiver conectado, cria evento de bloqueio
     if (usuario?.googleRefreshToken && usuario?.googleCalendarId) {
@@ -113,8 +114,15 @@ export async function POST(request: NextRequest) {
         googleEventId = event.id || null;
         console.log("[API Bloqueios] POST - Evento criado no Calendar:", googleEventId);
       } catch (calendarError) {
-        console.error("[API Bloqueios] POST - Erro ao criar evento no Calendar:", calendarError);
-        // Continua mesmo se falhar no Calendar
+        const errorMsg = calendarError instanceof Error ? calendarError.message : String(calendarError);
+        console.error("[API Bloqueios] POST - Erro ao criar evento no Calendar:", errorMsg);
+
+        // Verifica tipo de erro
+        if (errorMsg.includes("invalid_grant") || errorMsg.includes("Token")) {
+          googleCalendarWarning = "Token do Google expirado. Bloqueio salvo localmente. Reconecte o Google e clique em Sincronizar.";
+        } else {
+          googleCalendarWarning = "Falha ao sincronizar com Google Calendar. Clique em 'Sincronizar' para tentar novamente.";
+        }
       }
     } else {
       console.log("[API Bloqueios] POST - Google Calendar não configurado para este usuário");
@@ -148,7 +156,11 @@ export async function POST(request: NextRequest) {
       clinica: user.clinica,
     });
 
-    return NextResponse.json(bloqueio, { status: 201 });
+    // Retorna com warning se houve problema no Calendar
+    return NextResponse.json({
+      ...bloqueio,
+      warning: googleCalendarWarning,
+    }, { status: 201 });
   } catch (error) {
     console.error("[API Bloqueios] POST - Erro:", error);
     return NextResponse.json(
