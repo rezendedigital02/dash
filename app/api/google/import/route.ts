@@ -171,8 +171,34 @@ export async function POST() {
     });
   } catch (error) {
     console.error("❌ [Google Import] Erro:", error);
+
+    // Verifica se é erro de autenticação do Google
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("❌ [Google Import] Mensagem de erro:", errorMessage);
+
+    if (errorMessage.includes("invalid_grant") || errorMessage.includes("Token has been expired") || errorMessage.includes("refresh token")) {
+      return NextResponse.json(
+        { error: "Token do Google expirado. Por favor, reconecte sua conta Google clicando em 'Conectar Google' novamente." },
+        { status: 401 }
+      );
+    }
+
+    if (errorMessage.includes("insufficient") || errorMessage.includes("permission") || errorMessage.includes("403")) {
+      return NextResponse.json(
+        { error: "Permissões insuficientes. Reconecte sua conta Google." },
+        { status: 403 }
+      );
+    }
+
+    if (errorMessage.includes("notFound") || errorMessage.includes("404")) {
+      return NextResponse.json(
+        { error: "Calendário não encontrado. Verifique se o calendário ainda existe." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Erro ao importar eventos" },
+      { error: `Erro ao importar: ${errorMessage.substring(0, 100)}` },
       { status: 500 }
     );
   }

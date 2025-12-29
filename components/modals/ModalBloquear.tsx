@@ -92,6 +92,11 @@ export function ModalBloquear({
         throw new Error(responseData.error || "Erro ao criar bloqueio");
       }
 
+      // Mostra aviso se houve problema com Google Calendar
+      if (responseData.warning) {
+        alert(`Bloqueio criado!\n\nAviso: ${responseData.warning}`);
+      }
+
       // Limpa o formulário e fecha o modal
       setTipo("horario");
       setData(selectedDate);
