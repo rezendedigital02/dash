@@ -462,6 +462,15 @@ export default function DashboardPage() {
                     <RefreshCw className={`h-4 w-4 mr-2 ${syncingGoogle ? "animate-spin" : ""}`} />
                     {syncingGoogle ? "Sincronizando..." : "Sincronizar"}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleConnectGoogle}
+                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Reconectar
+                  </Button>
                 </>
               )}
               <Button
@@ -530,6 +539,18 @@ export default function DashboardPage() {
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${syncingGoogle ? "animate-spin" : ""}`} />
                     Sincronizar com Google
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-orange-600"
+                    onClick={() => {
+                      handleConnectGoogle();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Reconectar Google
                   </Button>
                 </>
               )}
