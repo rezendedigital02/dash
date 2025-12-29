@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { format, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/stats/grafico - Retorna dados para o gráfico de agendamentos
 export async function GET(request: NextRequest) {
   try {

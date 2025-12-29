@@ -4,6 +4,8 @@ import prisma from "@/lib/db";
 import { listCalendarEvents } from "@/lib/google-calendar";
 import { addDays, startOfDay, endOfDay } from "date-fns";
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/google/import - Importa eventos do Google Calendar para o banco
 export async function POST() {
   console.log("📥 [Google Import] Iniciando importação...");

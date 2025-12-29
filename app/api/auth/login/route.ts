@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/db";
 import { verifyPassword, generateToken } from "@/lib/auth";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

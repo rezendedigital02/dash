@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getAuthUrl } from "@/lib/google-calendar";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/google/auth - Retorna URL de autorização do Google
 export async function GET() {
   try {

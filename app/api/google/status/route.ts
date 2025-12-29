@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import prisma from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/google/status - Verifica se o Google Calendar está conectado
 export async function GET() {
   try {

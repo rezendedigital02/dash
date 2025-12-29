@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/webhooks/bloquear - Webhook para criar bloqueio (usado pelo agente IA)
 export async function POST(request: NextRequest) {
   try {

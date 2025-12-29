@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { startOfDay, endOfDay } from "date-fns";
 import { createCalendarEvent, formatAgendamentoToEvent } from "@/lib/google-calendar";
 
+export const dynamic = 'force-dynamic';
+
 // Timezone do Brasil (UTC-3)
 const TIMEZONE_OFFSET = -3 * 60 * 60 * 1000;
 

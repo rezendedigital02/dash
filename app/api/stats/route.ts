@@ -3,6 +3,8 @@ import prisma from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { startOfDay, endOfDay, startOfWeek, endOfWeek } from "date-fns";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/stats - Retorna estatísticas do dashboard
 export async function GET() {
   try {

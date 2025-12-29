@@ -3,6 +3,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { getTokensFromCode, listCalendars } from "@/lib/google-calendar";
 import prisma from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/google/callback - Callback do OAuth do Google
 export async function GET(request: NextRequest) {
   try {

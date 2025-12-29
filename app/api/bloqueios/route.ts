@@ -3,6 +3,8 @@ import prisma from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { createCalendarEvent, formatBloqueioToEvent } from "@/lib/google-calendar";
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/bloqueios - Lista bloqueios ativos
 export async function GET() {
   console.log("[API Bloqueios] GET - Iniciando...");
